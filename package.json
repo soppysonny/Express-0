@@ -1,25 +1,16 @@
 {
   "name": "express-0",
-  "version": "1.0.0",
-  "main": "index.js",
+  "version": "0.0.0",
+  "private": true,
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node ./bin/www"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
-    "axios": "^1.9.0",
-    "connect-redis": "^8.1.0",
-    "dotenv": "^16.5.0",
-    "express": "^5.1.0",
-    "express-session": "^1.18.1",
-    "passport": "^0.7.0",
-    "passport-appleid": "^1.0.5",
-    "passport-local": "^1.0.0",
-    "pg": "^8.16.0",
-    "pg-hstore": "^2.3.4",
-    "sequelize": "^6.37.7"
+    "cookie-parser": "~1.4.4",
+    "debug": "~2.6.9",
+    "express": "~4.16.1",
+    "http-errors": "~1.6.3",
+    "jade": "~1.11.0",
+    "morgan": "~1.9.1"
   }
 }
