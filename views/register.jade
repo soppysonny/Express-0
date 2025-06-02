@@ -1,0 +1,80 @@
+//- 用户注册页面 - register.jade
+doctype html
+html(lang="zh-CN")
+  head
+    title 用户注册
+    meta(charset="UTF-8")
+    meta(name="viewport", content="width=device-width, initial-scale=1.0")
+    style.
+      body { font-family: '微软雅黑', sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; }
+      .form-group { margin-bottom: 15px; }
+      label { display: block; margin-bottom: 5px; font-weight: bold; }
+      input[type="text"], input[type="password"], input[type="email"] {
+        width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;
+      }
+      .captcha-container { display: flex; align-items: center; gap: 10px; }
+      #captchaImage { border: 1px solid #ccc; padding: 5px; height: 40px; cursor: pointer; }
+      .error { color: red; font-size: 14px; margin-top: 5px; }
+      button { background: #4285f4; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
+      button:hover { background: #3367d6; }
+    script(src="https://code.jquery.com/jquery-3.6.0.min.js")
+    script.
+      $(document).ready(function() {
+        // 刷新验证码
+        function refreshCaptcha() {
+          $('#captchaImage').attr('src', '/captcha?' + new Date().getTime());
+        }
+        
+        // 初始加载验证码
+        refreshCaptcha();
+        
+        // 点击验证码刷新
+        $('#captchaImage').click(refreshCaptcha);
+        
+        // 表单提交验证
+        $('form').submit(function(e) {
+          const password = $('#password').val();
+          const confirmPassword = $('#confirmPassword').val();
+          
+          if (password !== confirmPassword) {
+            $('#passwordError').text('两次输入的密码不一致').show();
+            e.preventDefault();
+            return false;
+          }
+          
+          // 其他验证逻辑...
+          return true;
+        });
+      });
+
+  body
+    h1 用户注册
+    form(action="/register", method="POST")
+      .form-group
+        label(for="username") 用户名:
+        input(type="text", id="username", name="username", required)
+      
+      .form-group
+        label(for="email") 邮箱:
+        input(type="email", id="email", name="email", required)
+      
+      .form-group
+        label(for="password") 密码:
+        input(type="password", id="password", name="password", required)
+        #passwordError.error(style="display: none")
+      
+      .form-group
+        label(for="confirmPassword") 确认密码:
+        input(type="password", id="confirmPassword", name="confirmPassword", required)
+      
+      .form-group
+        label 验证码:
+        .captcha-container
+          input(type="text", id="captcha", name="captcha", placeholder="输入验证码", required)
+          img#captchaImage(src="", alt="验证码", title="点击刷新验证码")
+      
+      button(type="submit") 注册
+      
+      p 
+        | 已有账号? 
+        a(href="/login") 立即登录
