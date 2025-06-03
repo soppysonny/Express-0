@@ -1,19 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const { sendVerificationCode } = require('../utils/email');
-const User = require('../models/user');
-const crypto = require('crypto');
-
-// 生成token
-const generateToken = () => {
-  return crypto.randomBytes(32).toString('hex');
-};
-
-// 存储验证码
-const verificationCodes = new Map();
+const { getTokenFromCookies } = require('../utils/auth');
 
 // 显示注册页面
 router.get('/', function(req, res) {
+  const token = getTokenFromCookies(req.headers.cookie);
+  
+  if (token) {
+    return res.redirect('/');
+  }
+  
   res.render('register');
 });
 
@@ -41,39 +38,31 @@ router.post('/send-code', async (req, res) => {
 
 // 处理注册
 router.post('/', async function(req, res) {
-  const { username, email, verifyCode } = req.body;
+  const { email, verifyCode } = req.body;
   
   try {
-    // 验证验证码
     const stored = verificationCodes.get(email);
     if (!stored || stored.expires < Date.now() || stored.code !== verifyCode) {
       return res.json({ success: false, message: '验证码无效或已过期' });
     }
 
-    // 查找用户
     let user = await User.findOne({ email });
     
     if (!user) {
-      // 创建新用户
       user = new User({ 
-        username, 
         email,
         token: stored.token
       });
     } else {
-      // 更新已存在用户的token
       user.token = stored.token;
     }
     
-    // 异步保存用户
     user.save().catch(err => {
       console.error('保存用户失败:', err);
     });
     
-    // 清除验证码
     verificationCodes.delete(email);
     
-    // 返回token给前端
     res.json({ 
       success: true, 
       message: '登录成功',

@@ -1,0 +1,35 @@
+doctype html
+html
+  head
+    title Admin Login
+    style.
+      body { max-width: 400px; margin: 40px auto; padding: 20px; }
+      .error { color: red; margin-top: 10px; }
+      input { width: 100%; padding: 8px; margin: 10px 0; }
+      button { width: 100%; padding: 10px; }
+
+  body
+    h1 管理员登录
+    form#loginForm
+      input(type="password", name="password", required)
+      button(type="submit") 登录
+      .error
+
+    script.
+      const form = document.getElementById('loginForm');
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const res = await fetch('/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            password: form.password.value
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          window.location.href = '/admin';
+        } else {
+          document.querySelector('.error').textContent = data.message;
+        }
+      };

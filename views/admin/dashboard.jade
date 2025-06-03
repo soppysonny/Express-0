@@ -1,0 +1,77 @@
+doctype html
+html
+  head
+    title Admin Dashboard
+    style.
+      body { margin: 0; display: flex; }
+      .sidebar { width: 200px; padding: 20px; background: #f5f5f5; }
+      .content { flex: 1; padding: 20px; }
+      .menu-item { cursor: pointer; padding: 10px; }
+      .menu-item:hover { background: #e0e0e0; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 8px; border: 1px solid #ddd; }
+
+  body
+    .sidebar
+      .menu-item(onclick="showVpnRoutes()") 线路列表
+      .menu-item(onclick="showUsers()") 用户管理
+    .content#content
+
+    script.
+      async function showVpnRoutes() {
+        const res = await fetch('/admin/vpn-routes');
+        const data = await res.json();
+        if (data.success) {
+          const html = `
+            <h2>线路列表</h2>
+            <table>
+              <tr>
+                <th>别名</th>
+                <th>IP</th>
+                <th>端口</th>
+                <th>加密方式</th>
+                <th>操作</th>
+              </tr>
+              ${data.data.map(route => `
+                <tr>
+                  <td>${route.alias}</td>
+                  <td>${route.ip}</td>
+                  <td>${route.port}</td>
+                  <td>${route.encryptionMethod}</td>
+                  <td>
+                    <button onclick="editRoute('${route._id}')">编辑</button>
+                    <button onclick="deleteRoute('${route._id}')">删除</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </table>
+            <button onclick="addRoute()">添加线路</button>
+          `;
+          document.getElementById('content').innerHTML = html;
+        }
+      }
+
+      async function showUsers() {
+        const res = await fetch('/admin/users');
+        const data = await res.json();
+        if (data.success) {
+          const html = `
+            <h2>用户管理</h2>
+            <table>
+              <tr>
+                <th>邮箱</th>
+                <th>Token</th>
+                <th>注册时间</th>
+              </tr>
+              ${data.data.map(user => `
+                <tr>
+                  <td>${user.email}</td>
+                  <td>${user.token}</td>
+                  <td>${new Date(user.createdAt).toLocaleString()}</td>
+                </tr>
+              `).join('')}
+            </table>
+          `;
+          document.getElementById('content').innerHTML = html;
+        }
+      }

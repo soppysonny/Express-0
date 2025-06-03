@@ -5,10 +5,12 @@ var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 const env = require('./config/env');
 const connectDB = require('./Config/database');
+const session = require('express-session');
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var registerRouter = require('./routes/register');
+const adminRouter = require('./routes/admin');
 
 var app = express();
 app.locals.env = env;
@@ -18,7 +20,7 @@ const startServer = async () => {
   try {
     await connectDB();
     
-    const port = process.env.PORT || 3000;
+    const port = process.env.PORT || 3001;
     const server = app.listen(port);
     
     server.on('error', (error) => {
@@ -53,9 +55,17 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Add session middleware
+app.use(session({
+  secret: 'your-secret-key',
+  resave: false,
+  saveUninitialized: false
+}));
+
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/register', registerRouter);
+app.use('/admin', adminRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
