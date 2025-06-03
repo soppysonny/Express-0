@@ -1,14 +1,16 @@
 const nodemailer = require('nodemailer');
 const env = require('../config/env');
 
+const AUTH_EMAIL = '1905810584@qq.com'; // QQ邮箱地址
+
 // 创建邮件传输器
 const transporter = nodemailer.createTransport({
-  host: 'smtp.qq.com', // QQ邮箱的SMTP服务器
+  host: 'smtp.qq.com',
   port: 465,
-  secure: true, // true for 465, false for other ports
+  secure: true,
   auth: {
-    user: 'your-email@qq.com', // 你的QQ邮箱
-    pass: 'your-authorization-code' // 你的邮箱授权码
+    user: AUTH_EMAIL,
+    pass: 'ggpocfdjnwkzcfaa' // 授权码
   }
 });
 
@@ -21,9 +23,9 @@ const transporter = nodemailer.createTransport({
 async function sendVerificationCode(to, code) {
   // 邮件配置
   const mailOptions = {
-    from: '"注册验证" <your-email@qq.com>', // 发件人
-    to: to, // 收件人
-    subject: '注册验证码', // 邮件主题
+    from: `"注册验证" <${AUTH_EMAIL}>`, // 确保发件人地址与认证用户一致
+    to: to,
+    subject: '注册验证码',
     html: `
       <div style="padding: 20px; background-color: #f5f5f5;">
         <h2>您的验证码是：</h2>

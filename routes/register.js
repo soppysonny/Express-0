@@ -5,12 +5,12 @@ const { sendVerificationCode } = require('../utils/email');
 // 存储验证码
 const verificationCodes = new Map();
 
-// GET /register - 显示注册页面
+// 显示注册页面
 router.get('/', function(req, res) {
   res.render('register');
 });
 
-// POST /send-code - 发送验证码
+// 发送验证码
 router.post('/send-code', async (req, res) => {
   const { email } = req.body;
   const code = Math.random().toString().slice(-6);
@@ -23,11 +23,12 @@ router.post('/send-code', async (req, res) => {
     });
     res.json({ success: true, message: '验证码已发送' });
   } catch (err) {
+    console.error('发送验证码失败:', err);
     res.json({ success: false, message: '验证码发送失败' });
   }
 });
 
-// POST /register - 处理注册请求
+// 处理注册
 router.post('/', function(req, res) {
   const { username, email, verifyCode } = req.body;
   

@@ -46,7 +46,7 @@ html(lang="zh-CN")
           alert('请输入邮箱');
           return;
         }
-        fetch('/send-code', {
+        fetch('/register/send-code', {  // 修改这里的路径
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -56,5 +56,9 @@ html(lang="zh-CN")
         .then(res => res.json())
         .then(data => {
           alert(data.message);
+        })
+        .catch(err => {
+          console.error('发送请求失败:', err);
+          alert('发送验证码失败，请稍后重试');
         });
       }
