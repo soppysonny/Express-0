@@ -2,6 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { sendVerificationCode } = require('../utils/email');
 const User = require('../models/user');
+const crypto = require('crypto');
+
+// 生成token
+const generateToken = () => {
+  return crypto.randomBytes(32).toString('hex');
+};
 
 // 存储验证码
 const verificationCodes = new Map();
@@ -14,19 +20,15 @@ router.get('/', function(req, res) {
 // 发送验证码
 router.post('/send-code', async (req, res) => {
   const { email } = req.body;
+  const code = Math.random().toString().slice(-6);
+  const token = generateToken();
   
   try {
-    // 检查邮箱是否已注册
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.json({ success: false, message: '该邮箱已注册' });
-    }
-
-    const code = Math.random().toString().slice(-6);
     await sendVerificationCode(email, code);
     
     verificationCodes.set(email, {
       code,
+      token,
       expires: Date.now() + 10 * 60 * 1000
     });
     
@@ -45,32 +47,41 @@ router.post('/', async function(req, res) {
     // 验证验证码
     const stored = verificationCodes.get(email);
     if (!stored || stored.expires < Date.now() || stored.code !== verifyCode) {
-      return res.json({ success: false, message: '验证码无效或已过期' + stored.code });
+      return res.json({ success: false, message: '验证码无效或已过期' });
     }
 
-    // 检查用户名是否已存在
-    const existingUser = await User.findOne({ 
-      $or: [{ username }, { email }]
-    });
+    // 查找用户
+    let user = await User.findOne({ email });
     
-    if (existingUser) {
-      return res.json({ 
-        success: false, 
-        message: existingUser.username === username ? '用户名已存在' : '邮箱已注册'
+    if (!user) {
+      // 创建新用户
+      user = new User({ 
+        username, 
+        email,
+        token: stored.token
       });
+    } else {
+      // 更新已存在用户的token
+      user.token = stored.token;
     }
-
-    // 创建新用户
-    const user = new User({ username, email });
-    await user.save();
+    
+    // 异步保存用户
+    user.save().catch(err => {
+      console.error('保存用户失败:', err);
+    });
     
     // 清除验证码
     verificationCodes.delete(email);
     
-    res.json({ success: true, message: '注册成功' });
+    // 返回token给前端
+    res.json({ 
+      success: true, 
+      message: '登录成功',
+      token: stored.token
+    });
   } catch (err) {
-    console.error('注册失败:', err);
-    res.json({ success: false, message: '注册失败，请稍后重试' });
+    console.error('操作失败:', err);
+    res.json({ success: false, message: '操作失败，请稍后重试' });
   }
 });
 

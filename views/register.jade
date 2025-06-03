@@ -8,18 +8,18 @@ html(lang="zh-CN")
     style.
       body { font-family: '微软雅黑', sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; }
       .form-group { margin-bottom: 15px; }
-      label { display: block; margin-bottom: 5px; font-weight: bold; }
+      label { display: block; margin-bottom: 5px; }
       input[type="text"], input[type="email"] {
-        width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 10px;
       }
-      .error { color: red; font-size: 14px; margin-top: 5px; }
-      button { background: #4285f4; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
-      button:hover { background: #3367d6; }
+      button { padding: 8px 15px; cursor: pointer; }
     script(src="https://code.jquery.com/jquery-3.6.0.min.js")
 
   body
-    h1 用户注册
-    form(action="/register", method="POST")
+    h1 登录/注册
+    form(onsubmit="handleSubmit(event)")
       .form-group
         label(for="username") 用户名:
         input(type="text", id="username", name="username", required)
@@ -31,34 +31,54 @@ html(lang="zh-CN")
       
       .form-group
         label(for="verifyCode") 验证码:
-        input(type="text", id="verifyCode", name="verifyCode", placeholder="输入验证码", required)
+        input(type="text", id="verifyCode", name="verifyCode", required)
       
-      button(type="submit") 注册
-      
-      p 
-        | 已有账号? 
-        a(href="/login") 立即登录
+      button(type="submit") 确定
     
     script.
-      function sendCode() {
+      async function sendCode() {
         const email = document.querySelector('input[name="email"]').value;
         if(!email) {
           alert('请输入邮箱');
           return;
         }
-        fetch('/register/send-code', {  // 修改这里的路径
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({email})
-        })
-        .then(res => res.json())
-        .then(data => {
+        try {
+          const res = await fetch('/register/send-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({email})
+          });
+          const data = await res.json();
           alert(data.message);
-        })
-        .catch(err => {
-          console.error('发送请求失败:', err);
-          alert('发送验证码失败，请稍后重试');
-        });
+        } catch (err) {
+          alert('发送验证码失败，请重试');
+        }
+      }
+      
+      async function handleSubmit(event) {
+        event.preventDefault();
+        const formData = {
+          username: document.querySelector('input[name="username"]').value,
+          email: document.querySelector('input[name="email"]').value,
+          verifyCode: document.querySelector('input[name="verifyCode"]').value
+        };
+        
+        try {
+          const res = await fetch('/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(formData)
+          });
+          const data = await res.json();
+          
+          if (data.success) {
+            // 保存token到cookie
+            document.cookie = `token=${data.token}; path=/; max-age=2592000`; // 30天过期
+            window.location.href = '/'; // 跳转到首页
+          } else {
+            alert(data.message);
+          }
+        } catch (err) {
+          alert('操作失败，请重试');
+        }
       }
