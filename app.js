@@ -4,6 +4,7 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 const env = require('./config/env');
+const connectDB = require('./Config/database');
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
@@ -11,6 +12,36 @@ var registerRouter = require('./routes/register');
 
 var app = express();
 app.locals.env = env;
+
+// Connect to MongoDB before starting the server
+const startServer = async () => {
+  try {
+    await connectDB();
+    
+    const port = process.env.PORT || 3000;
+    const server = app.listen(port);
+    
+    server.on('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        console.log(`Port ${port} is in use, trying ${port + 1}`);
+        server.listen(port + 1);
+      } else {
+        console.error('Server error:', error);
+      }
+    });
+
+    server.on('listening', () => {
+      const addr = server.address();
+      console.log(`Server running on port ${addr.port}`);
+    });
+
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
