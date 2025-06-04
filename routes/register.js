@@ -1,7 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { sendVerificationCode } = require('../utils/email');
-const { getTokenFromCookies } = require('../utils/auth');
+const { generateToken, getTokenFromCookies } = require('../utils/auth');
+const User = require('../models/user');
+
+// 存储验证码的 Map
+const verificationCodes = new Map();
 
 // 显示注册页面
 router.get('/', function(req, res) {
@@ -39,6 +43,7 @@ router.post('/send-code', async (req, res) => {
 // 处理注册
 router.post('/', async function(req, res) {
   const { email, verifyCode } = req.body;
+  const clientIp = req.ip || req.connection.remoteAddress;
   
   try {
     const stored = verificationCodes.get(email);
@@ -49,23 +54,25 @@ router.post('/', async function(req, res) {
     let user = await User.findOne({ email });
     
     if (!user) {
+      // 新用户注册
       user = new User({ 
         email,
-        token: stored.token
+        token: stored.token,
+        registerIp: clientIp,
+        lastLoginIp: clientIp
       });
     } else {
+      // 已存在用户登录
       user.token = stored.token;
+      user.lastLoginIp = clientIp;
     }
     
-    user.save().catch(err => {
-      console.error('保存用户失败:', err);
-    });
-    
+    await user.save();
     verificationCodes.delete(email);
     
     res.json({ 
       success: true, 
-      message: '登录成功',
+      message: user ? '登录成功' : '注册成功',
       token: stored.token
     });
   } catch (err) {

@@ -80,9 +80,10 @@ router.get('/vpn-routes', checkAdmin, async (req, res) => {
 // Get users
 router.get('/users', checkAdmin, async (req, res) => {
   try {
-    const users = await User.find();
+    const users = await User.find().select('email token registerIp lastLoginIp createdAt');
     res.json({ success: true, data: users });
   } catch (err) {
+    console.error('获取用户列表失败:', err);
     res.json({ success: false, message: '获取用户列表失败' });
   }
 });

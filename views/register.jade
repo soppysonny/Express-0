@@ -24,15 +24,27 @@ html(lang="zh-CN")
   body
     script.
       // Check token on page load
-      (function checkToken() {
+      (async function checkToken() {
         const cookies = document.cookie.split(';').reduce((acc, cookie) => {
           const [key, value] = cookie.trim().split('=');
           acc[key] = value;
           return acc;
         }, {});
         
-        if (cookies.token) {
-          window.location.href = '/';
+        const token = cookies.token;
+        if (token) {
+          try {
+            const res = await fetch('/', {
+              headers: {
+                'Cookie': `token=${token}`
+              }
+            });
+            if (res.ok) {
+              window.location.href = '/';
+            }
+          } catch (err) {
+            console.error('Token verification failed:', err);
+          }
         }
       })();
     
@@ -111,6 +123,7 @@ html(lang="zh-CN")
           if (data.success) {
             document.cookie = `token=${data.token}; path=/; max-age=2592000`;
             window.location.href = '/';
+            console.log('注册成功，token:', data.token);
           } else {
             alert(data.message);
           }

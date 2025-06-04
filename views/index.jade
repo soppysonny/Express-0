@@ -3,3 +3,51 @@ extends layout
 block content
   h1= title
   p Welcome to #{title}
+  
+  .user-info
+    if user
+      p 当前用户：#{user.email}
+      button.logout(onclick="handleLogout()") 退出登录
+    else
+      button.login(onclick="handleLogin()") 登录
+  
+  style.
+    .user-info {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    button {
+      padding: 8px 15px;
+      cursor: pointer;
+      background: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+    button:hover {
+      background: #3367d6;
+    }
+    button.logout {
+      background: #dc3545;
+    }
+    button.logout:hover {
+      background: #c82333;
+    }
+    button.login:hover {
+      background: #3367d6;
+    }
+
+  script.
+    function handleLogout() {
+      document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      window.location.reload();
+    }
+
+    function handleLogin() {
+      console.log("handleLogin");
+      window.location.href = '/register';
+    }

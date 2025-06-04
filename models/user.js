@@ -12,6 +12,14 @@ const userSchema = new mongoose.Schema({
     unique: true
   },
   token: String,
+  registerIp: {
+    type: String,
+    default: '0.0.0.0'
+  },
+  lastLoginIp: {
+    type: String,
+    required: true
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -25,5 +33,9 @@ userSchema.pre('save', function(next) {
   }
   next();
 });
+
+userSchema.statics.findByToken = async function(token) {
+  return this.findOne({ token });
+};
 
 module.exports = mongoose.model('User', userSchema);

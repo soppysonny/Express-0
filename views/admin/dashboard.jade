@@ -61,12 +61,16 @@ html
               <tr>
                 <th>邮箱</th>
                 <th>Token</th>
+                <th>注册IP</th>
+                <th>最后登录IP</th>
                 <th>注册时间</th>
               </tr>
               ${data.data.map(user => `
                 <tr>
                   <td>${user.email}</td>
-                  <td>${user.token}</td>
+                  <td>${user.token || '-'}</td>
+                  <td>${user.registerIp || '-'}</td>
+                  <td>${user.lastLoginIp || '-'}</td>
                   <td>${new Date(user.createdAt).toLocaleString()}</td>
                 </tr>
               `).join('')}

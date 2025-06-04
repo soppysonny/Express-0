@@ -1,3 +1,9 @@
+const crypto = require('crypto');
+
+function generateToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
 function getTokenFromCookies(cookieString) {
   if (!cookieString) return null;
   
@@ -11,5 +17,6 @@ function getTokenFromCookies(cookieString) {
 }
 
 module.exports = {
+  generateToken,
   getTokenFromCookies
 };

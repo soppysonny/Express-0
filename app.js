@@ -62,6 +62,9 @@ app.use(session({
   saveUninitialized: false
 }));
 
+// Enable trust proxy to get real IP when behind a proxy
+app.set('trust proxy', true);
+
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/register', registerRouter);
