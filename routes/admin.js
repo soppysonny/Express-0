@@ -77,6 +77,20 @@ router.get('/vpn-routes', checkAdmin, async (req, res) => {
   }
 });
 
+// Get single VPN route
+router.get('/vpn-routes/:id', checkAdmin, async (req, res) => {
+  try {
+    const route = await VpnRoute.findById(req.params.id);
+    if (!route) {
+      return res.json({ success: false, message: '线路不存在' });
+    }
+    res.json({ success: true, data: route });
+  } catch (err) {
+    console.error('Failed to get VPN route:', err);
+    res.json({ success: false, message: '获取线路失败' });
+  }
+});
+
 // Get users
 router.get('/users', checkAdmin, async (req, res) => {
   try {
@@ -85,6 +99,60 @@ router.get('/users', checkAdmin, async (req, res) => {
   } catch (err) {
     console.error('获取用户列表失败:', err);
     res.json({ success: false, message: '获取用户列表失败' });
+  }
+});
+
+// Add VPN route
+router.post('/vpn-routes', checkAdmin, async (req, res) => {
+  try {
+    const { ip, port, alias, password, encryptionMethod, extraInfo } = req.body;
+    
+    const vpnRoute = new VpnRoute({
+      ip,
+      port,
+      alias,
+      password,
+      encryptionMethod,
+      extraInfo: extraInfo || '{}'
+    });
+    
+    await vpnRoute.save();
+    res.json({ success: true, data: vpnRoute });
+  } catch (err) {
+    console.error('Failed to add VPN route:', err);
+    res.json({ success: false, message: '添加线路失败' });
+  }
+});
+
+// Update VPN route
+router.put('/vpn-routes/:id', checkAdmin, async (req, res) => {
+  try {
+    const route = await VpnRoute.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    if (!route) {
+      return res.json({ success: false, message: '线路不存在' });
+    }
+    res.json({ success: true, data: route });
+  } catch (err) {
+    console.error('Failed to update VPN route:', err);
+    res.json({ success: false, message: '更新线路失败' });
+  }
+});
+
+// Delete VPN route
+router.delete('/vpn-routes/:id', checkAdmin, async (req, res) => {
+  try {
+    const route = await VpnRoute.findByIdAndDelete(req.params.id);
+    if (!route) {
+      return res.json({ success: false, message: '线路不存在' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to delete VPN route:', err);
+    res.json({ success: false, message: '删除线路失败' });
   }
 });
 
