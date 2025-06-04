@@ -35,7 +35,7 @@ html
       .btn-primary:hover { background: #3367d6; }
       .modal-buttons {
         display: flex;
-        gap: 10px;
+        gap: 15px;  /* Increased gap between buttons */
         justify-content: flex-end;
         margin-top: 20px;
       }
@@ -68,9 +68,10 @@ html
           .form-group
             label(for="extraInfo") 额外信息 (JSON)
             input(type="text", name="extraInfo", value="{}")
-          
-          button.btn-primary(type="submit") 保存
-          button.btn-primary(type="button", onclick="closeModal()") 取消
+            
+          .modal-buttons
+            button.btn-primary(type="submit") 保存
+            button.btn-primary(type="button", onclick="closeModal()", style="margin-left: 10px") 取消
 
     script.
       async function showVpnRoutes() {
