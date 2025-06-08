@@ -56,14 +56,15 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Add session middleware
+// Add session middleware BEFORE route handlers
 app.use(session({
   secret: 'your-secret-key',
-  resave: false,
+  resave: true,
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    httpOnly: true,
+    maxAge: 60 * 60 * 1000 // 1 hour
   }
 }));
 

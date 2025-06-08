@@ -4,59 +4,63 @@ const VpnRoute = require('../models/vpnRoute');
 const User = require('../models/user');
 const { encrypt, decrypt } = require('../utils/crypto');
 const { loginLimiter, apiLimiter } = require('../middleware/rateLimit');
-const csrfProtection = require('../middleware/csrf');
 
-// Apply CSRF protection and rate limiting
-router.use(csrfProtection);
+// Apply rate limiting only
 router.use('/login', loginLimiter);
 router.use(apiLimiter);
 
 // Admin login page
 router.get('/login', (req, res) => {
-  res.render('admin/login', { csrfToken: req.csrfToken() });
+  res.render('admin/login');
 });
+
+const loginAttempts = new Map();
 
 // Admin password verification
 router.post('/verify', async (req, res) => {
+  const ip = req.socket.remoteAddress || '0.0.0.0';
+  const now = Date.now();
+  const lastAttempt = loginAttempts.get(ip);
+
+  // Check if last attempt was within 1 minute
+  if (lastAttempt && (now - lastAttempt < 60000)) {
+    const waitTime = Math.ceil((60000 - (now - lastAttempt)) / 1000);
+    return res.json({
+      success: false,
+      message: `请等待${waitTime}秒后重试`
+    });
+  }
+
   const { password } = req.body;
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '4558916482zm';
   
-  // Store admin password in environment variable
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'your-admin-password';
-  
+  // Update attempt time regardless of success/failure
+  loginAttempts.set(ip, now);
+
   if (password === ADMIN_PASSWORD) {
-    // Set admin session with 1 hour expiry
+    // Set admin session
     req.session.isAdmin = true;
     req.session.cookie.maxAge = 60 * 60 * 1000; // 1 hour
     
-    // Save session before sending response
-    req.session.save((err) => {
-      if (err) {
-        console.error('Session save error:', err);
-        return res.json({ 
-          success: false, 
-          message: '登录失败，请重试'
-        });
-      }
-      res.json({ success: true });
+    // Wait for session to be saved before responding
+    await new Promise((resolve, reject) => {
+      req.session.save(err => {
+        if (err) {
+          console.error('Session save error:', err);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
     });
+    
+    res.json({ success: true });
   } else {
     res.json({ 
       success: false, 
       message: '密码错误'
     });
   }
-});
-
-// Auth middleware
-router.use((req, res, next) => {
-  if (req.path === '/login' || req.path === '/verify') {
-    return next();
-  }
-  
-  if (!req.session.isAdmin) {
-    return res.redirect('/admin/login');
-  }
-  next();
 });
 
 // Admin dashboard

@@ -52,8 +52,10 @@ html
 
           const data = await res.json();
           if (data.success) {
-            // Redirect to admin dashboard
-            window.location.href = '/admin';
+            // Add small delay to ensure session is saved
+            setTimeout(() => {
+              window.location.href = '/admin';
+            }, 100);
           } else {
             alert(data.message || '密码错误');
           }
