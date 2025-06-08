@@ -2,34 +2,64 @@ doctype html
 html
   head
     title Admin Login
+    meta(name="csrf-token" content=csrfToken)
     style.
-      body { max-width: 400px; margin: 40px auto; padding: 20px; }
-      .error { color: red; margin-top: 10px; }
-      input { width: 100%; padding: 8px; margin: 10px 0; }
-      button { width: 100%; padding: 10px; }
+      .login-container {
+        max-width: 300px;
+        margin: 100px auto;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      input {
+        width: 100%;
+        padding: 8px;
+        margin-bottom: 15px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      button {
+        width: 100%;
+        padding: 8px;
+        background: #4285f4;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
 
   body
-    h1 管理员登录
-    form#loginForm
-      input(type="password", name="password", required)
-      button(type="submit") 登录
-      .error
+    .login-container
+      h2 管理员登录
+      form#loginForm(onsubmit="return verifyPassword(event)")
+        input#password(type="password", placeholder="请输入管理密码", required)
+        button(type="submit") 登录
 
     script.
-      const form = document.getElementById('loginForm');
-      form.onsubmit = async (e) => {
+      async function verifyPassword(e) {
         e.preventDefault();
-        const res = await fetch('/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            password: form.password.value
-          })
-        });
-        const data = await res.json();
-        if (data.success) {
-          window.location.href = '/admin';
-        } else {
-          document.querySelector('.error').textContent = data.message;
+        const password = document.getElementById('password').value;
+        
+        try {
+          const res = await fetch('/admin/verify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'CSRF-Token': document.querySelector('meta[name="csrf-token"]').content
+            },
+            body: JSON.stringify({ password })
+          });
+
+          const data = await res.json();
+          if (data.success) {
+            // Redirect to admin dashboard
+            window.location.href = '/admin';
+          } else {
+            alert(data.message || '密码错误');
+          }
+        } catch (err) {
+          console.error('验证失败:', err);
+          alert('验证失败，请重试');
         }
-      };
+        return false;
+      }

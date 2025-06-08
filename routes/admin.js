@@ -2,83 +2,96 @@ const express = require('express');
 const router = express.Router();
 const VpnRoute = require('../models/vpnRoute');
 const User = require('../models/user');
-const AdminLogin = require('../models/adminLogin');
+const { encrypt, decrypt } = require('../utils/crypto');
+const { loginLimiter, apiLimiter } = require('../middleware/rateLimit');
+const csrfProtection = require('../middleware/csrf');
 
-const ADMIN_PASSWORD = '4558916482zm';
-const LOGIN_TIMEOUT = 60 * 1000; // 1 minute
-const MAX_ATTEMPTS = 3;
+// Apply CSRF protection and rate limiting
+router.use(csrfProtection);
+router.use('/login', loginLimiter);
+router.use(apiLimiter);
 
-// Admin middleware
-const checkAdmin = async (req, res, next) => {
+// Admin login page
+router.get('/login', (req, res) => {
+  res.render('admin/login', { csrfToken: req.csrfToken() });
+});
+
+// Admin password verification
+router.post('/verify', async (req, res) => {
+  const { password } = req.body;
+  
+  // Store admin password in environment variable
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'your-admin-password';
+  
+  if (password === ADMIN_PASSWORD) {
+    // Set admin session with 1 hour expiry
+    req.session.isAdmin = true;
+    req.session.cookie.maxAge = 60 * 60 * 1000; // 1 hour
+    
+    // Save session before sending response
+    req.session.save((err) => {
+      if (err) {
+        console.error('Session save error:', err);
+        return res.json({ 
+          success: false, 
+          message: '登录失败，请重试'
+        });
+      }
+      res.json({ success: true });
+    });
+  } else {
+    res.json({ 
+      success: false, 
+      message: '密码错误'
+    });
+  }
+});
+
+// Auth middleware
+router.use((req, res, next) => {
+  if (req.path === '/login' || req.path === '/verify') {
+    return next();
+  }
+  
   if (!req.session.isAdmin) {
     return res.redirect('/admin/login');
   }
   next();
-};
-
-// Login page
-router.get('/login', (req, res) => {
-  res.render('admin/login');
-});
-
-// Handle login
-router.post('/login', async (req, res) => {
-  const { password } = req.body;
-  const ip = req.ip;
-
-  try {
-    let loginAttempt = await AdminLogin.findOne({ ip });
-    
-    if (loginAttempt) {
-      const timeDiff = Date.now() - loginAttempt.lastAttempt;
-      if (timeDiff < LOGIN_TIMEOUT && loginAttempt.attempts >= MAX_ATTEMPTS) {
-        return res.json({ 
-          success: false, 
-          message: '登录尝试次数过多，请稍后再试'
-        });
-      }
-    } else {
-      loginAttempt = new AdminLogin({ ip, attempts: 0 });
-    }
-
-    if (password !== ADMIN_PASSWORD) {
-      loginAttempt.attempts += 1;
-      loginAttempt.lastAttempt = Date.now();
-      await loginAttempt.save();
-      return res.json({ 
-        success: false, 
-        message: '密码错误'
-      });
-    }
-
-    // Login successful
-    req.session.isAdmin = true;
-    loginAttempt.attempts = 0;
-    await loginAttempt.save();
-    
-    res.json({ success: true });
-  } catch (err) {
-    res.json({ success: false, message: '服务器错误' });
-  }
 });
 
 // Admin dashboard
-router.get('/', checkAdmin, (req, res) => {
+router.get('/', (req, res) => {
   res.render('admin/dashboard');
 });
 
 // Get VPN routes
-router.get('/vpn-routes', checkAdmin, async (req, res) => {
+router.get('/vpn-routes', async (req, res) => {
   try {
     const routes = await VpnRoute.find();
-    res.json({ success: true, data: routes });
+    
+    // Encrypt sensitive fields in each route
+    const encryptedRoutes = routes.map(route => {
+      const routeObj = route.toObject();
+      return {
+        _id: routeObj._id,
+        ip: encrypt(routeObj.ip),
+        port: encrypt(routeObj.port),
+        alias: encrypt(routeObj.alias),
+        password: encrypt(routeObj.password),
+        encryptionMethod: encrypt(routeObj.encryptionMethod),
+        extraInfo: encrypt(routeObj.extraInfo || '{}')
+      };
+    });
+
+    res.json({ success: true, data: encryptedRoutes });
   } catch (err) {
+    console.error('获取线路列表失败:', err);
     res.json({ success: false, message: '获取线路列表失败' });
   }
 });
 
 // Get single VPN route
-router.get('/vpn-routes/:id', checkAdmin, async (req, res) => {
+router.get('/vpn-routes/:id', async (req, res) => {
   try {
     const route = await VpnRoute.findById(req.params.id);
     if (!route) {
@@ -92,7 +105,7 @@ router.get('/vpn-routes/:id', checkAdmin, async (req, res) => {
 });
 
 // Get users
-router.get('/users', checkAdmin, async (req, res) => {
+router.get('/users', async (req, res) => {
   try {
     const users = await User.find().select('email token registerIp lastLoginIp createdAt');
     res.json({ success: true, data: users });
@@ -103,7 +116,7 @@ router.get('/users', checkAdmin, async (req, res) => {
 });
 
 // Add VPN route
-router.post('/vpn-routes', checkAdmin, async (req, res) => {
+router.post('/vpn-routes', async (req, res) => {
   try {
     const { ip, port, alias, password, encryptionMethod, extraInfo } = req.body;
     
@@ -125,7 +138,7 @@ router.post('/vpn-routes', checkAdmin, async (req, res) => {
 });
 
 // Update VPN route
-router.put('/vpn-routes/:id', checkAdmin, async (req, res) => {
+router.put('/vpn-routes/:id', async (req, res) => {
   try {
     const route = await VpnRoute.findByIdAndUpdate(
       req.params.id,
@@ -143,7 +156,7 @@ router.put('/vpn-routes/:id', checkAdmin, async (req, res) => {
 });
 
 // Delete VPN route
-router.delete('/vpn-routes/:id', checkAdmin, async (req, res) => {
+router.delete('/vpn-routes/:id', async (req, res) => {
   try {
     const route = await VpnRoute.findByIdAndDelete(req.params.id);
     if (!route) {
@@ -153,6 +166,32 @@ router.delete('/vpn-routes/:id', checkAdmin, async (req, res) => {
   } catch (err) {
     console.error('Failed to delete VPN route:', err);
     res.json({ success: false, message: '删除线路失败' });
+  }
+});
+
+// Decrypt route data
+router.post('/decrypt', async (req, res) => {
+  try {
+    const { data } = req.body;
+    
+    // Decrypt each field using server-side key
+    const decrypted = {
+      alias: decrypt(data.alias),
+      ip: decrypt(data.ip), 
+      port: decrypt(data.port),
+      encryptionMethod: decrypt(data.encryptionMethod)
+    };
+
+    res.json({
+      success: true,
+      data: decrypted
+    });
+  } catch (err) {
+    console.error('Decryption failed:', err);
+    res.json({
+      success: false,
+      message: '解密失败'
+    });
   }
 });
 

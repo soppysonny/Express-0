@@ -11,6 +11,7 @@ var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var registerRouter = require('./routes/register');
 const adminRouter = require('./routes/admin');
+const musicRouter = require('./routes/music');
 
 var app = express();
 app.locals.env = env;
@@ -59,16 +60,21 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
   secret: 'your-secret-key',
   resave: false,
-  saveUninitialized: false
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
 }));
 
-// Enable trust proxy to get real IP when behind a proxy
-app.set('trust proxy', true);
+// Trust specific proxies
+app.set('trust proxy', ['127.0.0.1', '::1']);
 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
 app.use('/register', registerRouter);
 app.use('/admin', adminRouter);
+app.use('/music', musicRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

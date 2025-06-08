@@ -2,6 +2,7 @@ doctype html
 html
   head
     title Admin Dashboard
+    meta(name="csrf-token" content=csrfToken)
     style.
       body { margin: 0; display: flex; }
       .sidebar { width: 200px; padding: 20px; background: #f5f5f5; }
@@ -74,13 +75,28 @@ html
             button.btn-primary(type="button", onclick="closeModal()", style="margin-left: 10px") 取消
 
     script.
+      // Add CSRF token to all fetch requests
+      function addCSRFToken(options = {}) {
+        const token = document.querySelector('meta[name="csrf-token"]').content;
+        return {
+          ...options,
+          headers: {
+            ...options.headers,
+            'CSRF-Token': token
+          }
+        };
+      }
+
       async function showVpnRoutes() {
         const res = await fetch('/admin/vpn-routes');
         const data = await res.json();
         if (data.success) {
           const html = `
             <h2>线路列表</h2>
-            <button class="btn-primary" onclick="showAddRouteModal()">添加线路</button>
+            <div style="margin-bottom: 20px;">
+              <button class="btn-primary" onclick="decryptRoutes()">解密显示</button>
+              <button class="btn-primary" onclick="showAddRouteModal()">添加线路</button>
+            </div>
             <table>
               <tr>
                 <th>别名</th>
@@ -89,21 +105,61 @@ html
                 <th>加密方式</th>
                 <th>操作</th>
               </tr>
-              ${data.data.map(route => `
-                <tr>
-                  <td>${route.alias}</td>
-                  <td>${route.ip}</td>
-                  <td>${route.port}</td>
-                  <td>${route.encryptionMethod}</td>
-                  <td>
-                    <button onclick="editRoute('${route._id}')">编辑</button>
-                    <button onclick="deleteRoute('${route._id}')">删除</button>
-                  </td>
-                </tr>
-              `).join('')}
+              <tbody id="routesList">
+                ${data.data.map(route => `
+                  <tr data-route='${JSON.stringify(route)}'>
+                    <td>${route.alias}</td>
+                    <td>${route.ip}</td>
+                    <td>${route.port}</td>
+                    <td>${route.encryptionMethod}</td>
+                    <td>
+                      <button onclick="editRoute('${route._id}')">编辑</button>
+                      <button onclick="deleteRoute('${route._id}')">删除</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
             </table>
           `;
           document.getElementById('content').innerHTML = html;
+        }
+      }
+
+      async function decryptRoutes() {
+        try {
+          const rows = document.querySelectorAll('#routesList tr');
+          
+          for (const row of rows) {
+            const route = JSON.parse(row.dataset.route);
+            const cells = row.querySelectorAll('td');
+            
+            const decryptedData = await fetch('/admin/decrypt', 
+              addCSRFToken({
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  data: {
+                    alias: route.alias,
+                    ip: route.ip,
+                    port: route.port,
+                    encryptionMethod: route.encryptionMethod
+                  }
+                })
+              })
+            ).then(res => res.json());
+
+            if (decryptedData.success) {
+              cells[0].textContent = decryptedData.data.alias;
+              cells[1].textContent = decryptedData.data.ip;
+              cells[2].textContent = decryptedData.data.port;
+              cells[3].textContent = decryptedData.data.encryptionMethod;
+            } else {
+              throw new Error(decryptedData.message || '解密失败');
+            }
+          }
+        } catch (err) {
+          console.error('解密失败:', err);
+          alert('解密失败，请重试');
         }
       }
 
@@ -206,23 +262,113 @@ html
             <h2>用户管理</h2>
             <table>
               <tr>
+                <th>用户名</th>
                 <th>邮箱</th>
-                <th>Token</th>
-                <th>注册IP</th>
-                <th>最后登录IP</th>
-                <th>注册时间</th>
+                <th>角色</th>
+                <th>操作</th>
               </tr>
-              ${data.data.map(user => `
-                <tr>
-                  <td>${user.email}</td>
-                  <td>${user.token || '-'}</td>
-                  <td>${user.registerIp || '-'}</td>
-                  <td>${user.lastLoginIp || '-'}</td>
-                  <td>${new Date(user.createdAt).toLocaleString()}</td>
-                </tr>
-              `).join('')}
+              <tbody id="usersList">
+                ${data.data.map(user => `
+                  <tr data-user='${JSON.stringify(user)}'>
+                    <td>${user.username}</td>
+                    <td>${user.email}</td>
+                    <td>${user.role}</td>
+                    <td>
+                      <button onclick="editUser('${user._id}')">编辑</button>
+                      <button onclick="deleteUser('${user._id}')">删除</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
             </table>
           `;
           document.getElementById('content').innerHTML = html;
         }
       }
+
+      async function deleteUser(id) {
+        if (!confirm('确定要删除该用户吗？')) {
+          return;
+        }
+
+        try {
+          const res = await fetch(`/admin/users/${id}`, {
+            method: 'DELETE'
+          });
+          
+          const result = await res.json();
+          if (result.success) {
+            showUsers(); // Refresh the list
+          } else {
+            alert(result.message || '删除失败');
+          }
+        } catch (err) {
+          console.error('Failed to delete user:', err);
+          alert('删除失败，请重试');
+        }
+      }
+
+      async function editUser(id) {
+        try {
+          // First get the user data
+          const res = await fetch(`/admin/users/${id}`);
+          const result = await res.json();
+          
+          if (result.success) {
+            const user = result.data;
+            // Fill the form with user data
+            const form = document.getElementById('addUserForm');
+            form.username.value = user.username;
+            form.email.value = user.email;
+            form.role.value = user.role;
+            
+            // Add user ID to form for update
+            form.dataset.userId = id;
+            
+            // Show modal
+            showAddUserModal();
+          }
+        } catch (err) {
+          console.error('Failed to get user:', err);
+          alert('获取用户信息失败，请重试');
+        }
+      }
+
+      // User form submit handler
+      document.getElementById('addUserForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+        const userId = e.target.dataset.userId;
+        
+        try {
+          const res = await fetch(`/admin/users${userId ? '/' + userId : ''}`, {
+            method: userId ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+          
+          const result = await res.json();
+          if (result.success) {
+            closeUserModal();
+            showUsers(); // Refresh the list
+            // Clear user ID from form
+            e.target.dataset.userId = '';
+          } else {
+            alert(result.message || '操作失败');
+          }
+        } catch (err) {
+          console.error('Failed to save user:', err);
+          alert('操作失败，请重试');
+        }
+      };
+
+      function closeUserModal() {
+        const form = document.getElementById('addUserForm');
+        form.reset();
+        form.dataset.userId = '';
+        document.getElementById('addUserModal').style.display = 'none';
+      }
+
+      // Initial load
+      showVpnRoutes();

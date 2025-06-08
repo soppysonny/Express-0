@@ -1,0 +1,21 @@
+extends layout
+
+block content
+  script(src="https://js-cdn.music.apple.com/musickit/v1/musickit.js")
+  
+  .music-container
+    h1 Music Player
+    #apple-music-player
+  
+  style.
+    .music-container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+  script.
+    document.addEventListener('musickitloaded', function() {
+      // MusicKit JS is loaded, initialize your player here
+      console.log('MusicKit JS loaded');
+    });
