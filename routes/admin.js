@@ -199,4 +199,18 @@ router.post('/decrypt', async (req, res) => {
   }
 });
 
+// Add logout route
+router.post('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Logout failed:', err);
+      return res.json({ 
+        success: false, 
+        message: '退出失败'
+      });
+    }
+    res.json({ success: true });
+  });
+});
+
 module.exports = router;

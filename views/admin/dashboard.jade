@@ -40,8 +40,23 @@ html
         justify-content: flex-end;
         margin-top: 20px;
       }
+      .logout-btn {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: #f44336;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .logout-btn:hover {
+        background: #d32f2f;
+      }
 
   body
+    button.logout-btn(onclick="logout()") 退出登录
     .sidebar
       .menu-item(onclick="showVpnRoutes()") 线路列表
       .menu-item(onclick="showUsers()") 用户管理
@@ -368,6 +383,24 @@ html
         form.reset();
         form.dataset.userId = '';
         document.getElementById('addUserModal').style.display = 'none';
+      }
+
+      async function logout() {
+        try {
+          const res = await fetch('/admin/logout', {
+            method: 'POST'
+          });
+          const data = await res.json();
+          
+          if (data.success) {
+            window.location.href = '/admin/login';
+          } else {
+            alert(data.message || '退出失败');
+          }
+        } catch (err) {
+          console.error('Logout failed:', err);
+          alert('退出失败，请重试');
+        }
       }
 
       // Initial load
