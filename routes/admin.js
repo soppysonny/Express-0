@@ -5,6 +5,7 @@ const User = require('../models/user');
 const SubscriptionPlan = require('../models/subscriptionPlan');
 const { encrypt, decrypt } = require('../utils/crypto');
 const { loginLimiter, apiLimiter } = require('../middleware/rateLimit');
+const axios = require('axios');
 
 // Apply rate limiting only
 router.use('/login', loginLimiter);
@@ -285,5 +286,142 @@ router.get('/subscription-plans/:id', async (req, res) => {
     });
   }
 });
+
+// iOS receipt verification endpoints
+const PRODUCTION_URL = 'https://buy.itunes.apple.com/verifyReceipt';
+const SANDBOX_URL = 'https://sandbox.itunes.apple.com/verifyReceipt';
+
+// Verify iOS receipt
+router.post('/verify-receipt', async (req, res) => {
+  try {
+    const { receipt_data } = req.body;
+    
+    if (!receipt_data) {
+      return res.json({
+        success: false,
+        message: '收据数据不能为空'
+      });
+    }
+
+    // First try production environment
+    let verificationResult = await verifyReceipt(receipt_data, PRODUCTION_URL);
+    
+    // If status is 21007, it's a sandbox receipt, try sandbox environment
+    if (verificationResult.status === 21007) {
+      verificationResult = await verifyReceipt(receipt_data, SANDBOX_URL);
+    }
+
+    // Process verification result
+    const response = processVerificationResult(verificationResult);
+    res.json(response);
+
+  } catch (err) {
+    console.error('Receipt verification failed:', err);
+    res.json({
+      success: false,
+      message: '收据验证失败',
+      error: err.message
+    });
+  }
+});
+
+// Helper function to verify receipt with Apple
+async function verifyReceipt(receiptData, verifyUrl) {
+  try {
+    const response = await axios.post(verifyUrl, {
+      'receipt-data': receiptData,
+      'password': process.env.APPLE_SECRET || 'your-secret-here', // Your app-specific shared secret
+    });
+    
+    return response.data;
+  } catch (err) {
+    throw new Error(`Apple verification failed: ${err.message}`);
+  }
+}
+
+function safeParseDate(timestamp) {
+  if (!timestamp) return null;
+  try {
+    const date = new Date(parseInt(timestamp));
+    return date.getTime() ? date.toISOString() : null;
+  } catch (err) {
+    console.warn('Invalid timestamp:', timestamp);
+    return null;
+  }
+}
+
+function processVerificationResult(result) {
+  // Status 0 indicates success
+  if (result.status === 0) {
+    const latestReceipt = result.latest_receipt_info?.[0];
+    const pendingRenewal = result.pending_renewal_info?.[0];
+    
+    if (latestReceipt) {
+      return {
+        success: true,
+        data: {
+          // Basic transaction info
+          environment: result.environment,
+          status: result.status,
+          transactionId: latestReceipt.transaction_id,
+          originalTransactionId: latestReceipt.original_transaction_id,
+          
+          // Product details
+          productId: latestReceipt.product_id,
+          quantity: parseInt(latestReceipt.quantity) || 1,
+          
+          // Dates - using safe date parsing
+          purchaseDate: safeParseDate(latestReceipt.purchase_date_ms),
+          originalPurchaseDate: safeParseDate(latestReceipt.original_purchase_date_ms),
+          expiresDate: safeParseDate(latestReceipt.expires_date_ms),
+          receiptCreationDate: safeParseDate(result.receipt?.creation_date_ms),
+          cancellationDate: safeParseDate(latestReceipt.cancellation_date_ms),
+          
+          // Subscription info
+          isTrialPeriod: latestReceipt.is_trial_period === "true",
+          isInIntroOfferPeriod: latestReceipt.is_in_intro_offer_period === "true",
+          
+          // Renewal info
+          autoRenewStatus: pendingRenewal?.auto_renew_status === "1",
+          autoRenewProductId: pendingRenewal?.auto_renew_product_id,
+          priceConsentStatus: pendingRenewal?.price_consent_status === "1",
+          
+          // Receipt info
+          latestReceipt: result.latest_receipt,
+          bundleId: result.receipt?.bundle_id,
+          applicationVersion: result.receipt?.application_version,
+          cancellationReason: latestReceipt.cancellation_reason,
+          
+          // Offer details
+          offerCodeRefName: latestReceipt.offer_code_ref_name,
+          promotionalOfferId: latestReceipt.promotional_offer_id,
+          webOrderLineItemId: latestReceipt.web_order_line_item_id
+        }
+      };
+    }
+  }
+  
+  // Handle different status codes
+  const statusMessages = {
+    21000: '收据格式不正确',
+    21002: '收据数据不正确',
+    21003: '收据未认证',
+    21004: '共享密钥不匹配',
+    21005: '收据服务器暂时不可用',
+    21006: '收据已过期',
+    21007: '收据来自测试环境',
+    21008: '收据来自生产环境',
+    21010: '收据数据无效',
+    21100: 'IAP授权问题',
+    21199: '内部数据访问错误'
+  };
+
+  return {
+    success: false,
+    message: statusMessages[result.status] || '未知错误',
+    status: result.status,
+    environment: result.environment
+  };
+}
 
 module.exports = router;
