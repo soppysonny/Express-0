@@ -1,25 +1,26 @@
 const rateLimit = require('express-rate-limit');
 
 const loginLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 1, // 1 request per window
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per window
   message: {
     success: false,
-    message: '请等待1分钟后再试'
+    message: '尝试次数过多，请15分钟后重试'
   },
-  standardHeaders: true,
-  legacyHeaders: false
+  // Use request IP instead of forwarded IP
+  keyGenerator: (req) => req.socket.remoteAddress || '0.0.0.0',
+  trustProxy: false
 });
 
 const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 30,
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 requests per minute
   message: {
     success: false,
-    message: '请求过于频繁，请稍后再试'
+    message: '请求过于频繁，请稍后重试'
   },
-  standardHeaders: true,
-  legacyHeaders: false
+  keyGenerator: (req) => req.socket.remoteAddress || '0.0.0.0',
+  trustProxy: false
 });
 
 module.exports = {

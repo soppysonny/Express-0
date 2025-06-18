@@ -60,8 +60,55 @@ html
     .sidebar
       .menu-item(onclick="showVpnRoutes()") 线路列表
       .menu-item(onclick="showUsers()") 用户管理
-    .content#content
+      .menu-item(onclick="showSubscriptionPlans()") 内购套餐
 
+    .content#content
+    
+    // Add Plan Modal
+    #addPlanModal.modal
+      .modal-content
+        h2#planModalTitle 添加内购套餐
+        form#addPlanForm
+          .form-group
+            label(for="planId") 套餐ID
+            input(type="text", name="planId", required)
+          .form-group
+            label(for="applePlanId") 苹果套餐ID
+            input(type="text", name="applePlanId", required)
+          .form-group
+            label(for="title") 标题
+            input(type="text", name="title", required)
+          .form-group
+            label(for="description") 描述
+            textarea(name="description", rows="3", style="width: 100%")
+          .form-group
+            label(for="price") 价格
+            input(type="number", name="price", step="0.01", required)
+          .form-group
+            label(for="duration") 订阅周期(天)
+            input(type="number", name="duration", required)
+          .form-group
+            label(for="autoRenew") 自动续费
+            select(name="autoRenew")
+              option(value="false") 否
+              option(value="true") 是
+          .form-group
+            label(for="clientOS") 客户端OS
+            select(name="clientOS")
+              option(value="All") 全部
+              option(value="iOS") iOS
+              option(value="Android") Android
+          .form-group
+            label(for="isVisible") 是否显示
+            select(name="isVisible")
+              option(value="true") 是
+              option(value="false") 否
+              
+          .modal-buttons
+            button.btn-primary(type="submit") 保存
+            button.btn-primary(type="button", onclick="closePlanModal()") 取消
+
+    // Add Route Modal
     #addRouteModal.modal
       .modal-content
         h2 添加线路
@@ -82,61 +129,170 @@ html
             label(for="encryptionMethod") 加密方式
             input(type="text", name="encryptionMethod", required)
           .form-group
-            label(for="extraInfo") 额外信息 (JSON)
-            input(type="text", name="extraInfo", value="{}")
-            
+            label(for="extraInfo") 额外信息
+            textarea(name="extraInfo", rows="3", style="width: 100%")
           .modal-buttons
             button.btn-primary(type="submit") 保存
-            button.btn-primary(type="button", onclick="closeModal()", style="margin-left: 10px") 取消
+            button.btn-primary(type="button", onclick="closeModal()") 取消
+
+    // Add User Modal
+    #addUserModal.modal
+      .modal-content
+        h2 添加用户
+        form#addUserForm
+          .form-group
+            label(for="username") 用户名
+            input(type="text", name="username", required)
+          .form-group
+            label(for="email") 邮箱
+            input(type="email", name="email", required)
+          .form-group
+            label(for="role") 角色
+            select(name="role")
+              option(value="user") 用户
+              option(value="admin") 管理员
+          .modal-buttons
+            button.btn-primary(type="submit") 保存
+            button.btn-primary(type="button", onclick="closeUserModal()") 取消
 
     script.
-      // Add CSRF token to all fetch requests
-      function addCSRFToken(options = {}) {
-        const token = document.querySelector('meta[name="csrf-token"]').content;
-        return {
-          ...options,
-          headers: {
-            ...options.headers,
-            'CSRF-Token': token
+      // Move all async functions into DOMContentLoaded
+      document.addEventListener('DOMContentLoaded', () => {
+        // Initialize form handlers
+        initFormHandlers();
+        // Load initial content
+        showVpnRoutes();
+      });
+
+      function initFormHandlers() {
+        // Add form submit handlers here
+        document.getElementById('addPlanForm').onsubmit = async (e) => {
+          e.preventDefault();
+          const formData = new FormData(e.target);
+          const data = Object.fromEntries(formData.entries());
+          const planId = e.target.dataset.planId;
+          
+          try {
+            const res = await fetch(`/admin/subscription-plans${planId ? '/' + planId : ''}`, {
+              method: planId ? 'PUT' : 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data)
+            });
+            
+            const result = await res.json();
+            if (result.success) {
+              closePlanModal();
+              showSubscriptionPlans();
+              e.target.dataset.planId = '';
+            } else {
+              alert(result.message || '操作失败');
+            }
+          } catch (err) {
+            console.error('Failed to save plan:', err);
+            alert('操作失败，请重试');
+          }
+        };
+
+        document.getElementById('addRouteForm').onsubmit = async (e) => {
+          e.preventDefault();
+          const formData = new FormData(e.target);
+          const data = Object.fromEntries(formData.entries());
+          const routeId = e.target.dataset.routeId;
+          
+          try {
+            const res = await fetch(`/admin/vpn-routes${routeId ? '/' + routeId : ''}`, {
+              method: routeId ? 'PUT' : 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data)
+            });
+            
+            const result = await res.json();
+            if (result.success) {
+              closeModal();
+              showVpnRoutes(); // Refresh the list
+              // Clear route ID from form
+              e.target.dataset.routeId = '';
+            } else {
+              alert(result.message || '操作失败');
+            }
+          } catch (err) {
+            console.error('Failed to save route:', err);
+            alert('操作失败，请重试');
+          }
+        };
+
+        document.getElementById('addUserForm').onsubmit = async (e) => {
+          e.preventDefault();
+          const formData = new FormData(e.target);
+          const data = Object.fromEntries(formData.entries());
+          const userId = e.target.dataset.userId;
+          
+          try {
+            const res = await fetch(`/admin/users${userId ? '/' + userId : ''}`, {
+              method: userId ? 'PUT' : 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(data)
+            });
+            
+            const result = await res.json();
+            if (result.success) {
+              closeUserModal();
+              showUsers(); // Refresh the list
+              // Clear user ID from form
+              e.target.dataset.userId = '';
+            } else {
+              alert(result.message || '操作失败');
+            }
+          } catch (err) {
+            console.error('Failed to save user:', err);
+            alert('操作失败，请重试');
           }
         };
       }
 
       async function showVpnRoutes() {
-        const res = await fetch('/admin/vpn-routes');
-        const data = await res.json();
-        if (data.success) {
-          const html = `
-            <h2>线路列表</h2>
-            <div style="margin-bottom: 20px;">
-              <button class="btn-primary" onclick="decryptRoutes()">解密显示</button>
-              <button class="btn-primary" onclick="showAddRouteModal()">添加线路</button>
-            </div>
-            <table>
-              <tr>
-                <th>别名</th>
-                <th>IP</th>
-                <th>端口</th>
-                <th>加密方式</th>
-                <th>操作</th>
-              </tr>
-              <tbody id="routesList">
-                ${data.data.map(route => `
-                  <tr data-route='${JSON.stringify(route)}'>
-                    <td>${route.alias}</td>
-                    <td>${route.ip}</td>
-                    <td>${route.port}</td>
-                    <td>${route.encryptionMethod}</td>
-                    <td>
-                      <button onclick="editRoute('${route._id}')">编辑</button>
-                      <button onclick="deleteRoute('${route._id}')">删除</button>
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          `;
-          document.getElementById('content').innerHTML = html;
+        try {
+          const res = await fetch('/admin/vpn-routes');
+          const data = await res.json();
+          if (data.success) {
+            const html = `
+              <h2>线路列表</h2>
+              <div style="margin-bottom: 20px;">
+                <button class="btn-primary" onclick="decryptRoutes()">解密显示</button>
+                <button class="btn-primary" onclick="showAddRouteModal()">添加线路</button>
+              </div>
+              <table>
+                <tr>
+                  <th>别名</th>
+                  <th>IP</th>
+                  <th>端口</th>
+                  <th>加密方式</th>
+                  <th>操作</th>
+                </tr>
+                <tbody id="routesList">
+                  ${data.data.map(route => `
+                    <tr data-route='${JSON.stringify(route)}'>
+                      <td>${route.alias}</td>
+                      <td>${route.ip}</td>
+                      <td>${route.port}</td>
+                      <td>${route.encryptionMethod}</td>
+                      <td>
+                        <button onclick="editRoute('${route._id}')">编辑</button>
+                        <button onclick="deleteRoute('${route._id}')">删除</button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            `;
+            const contentEl = document.getElementById('content');
+            if (contentEl) {
+              contentEl.innerHTML = html;
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load routes:', err);
+          alert('加载线路列表失败，请重试');
         }
       }
 
@@ -233,35 +389,6 @@ html
         }
       }
 
-      // Update form submit handler to handle both create and update
-      document.getElementById('addRouteForm').onsubmit = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const data = Object.fromEntries(formData.entries());
-        const routeId = e.target.dataset.routeId;
-        
-        try {
-          const res = await fetch(`/admin/vpn-routes${routeId ? '/' + routeId : ''}`, {
-            method: routeId ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-          });
-          
-          const result = await res.json();
-          if (result.success) {
-            closeModal();
-            showVpnRoutes(); // Refresh the list
-            // Clear route ID from form
-            e.target.dataset.routeId = '';
-          } else {
-            alert(result.message || '操作失败');
-          }
-        } catch (err) {
-          console.error('Failed to save route:', err);
-          alert('操作失败，请重试');
-        }
-      };
-
       function closeModal() {
         const form = document.getElementById('addRouteForm');
         form.reset();
@@ -270,6 +397,7 @@ html
       }
 
       async function showUsers() {
+        console.log('Loading users...');
         const res = await fetch('/admin/users');
         const data = await res.json();
         if (data.success) {
@@ -349,35 +477,6 @@ html
         }
       }
 
-      // User form submit handler
-      document.getElementById('addUserForm').onsubmit = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const data = Object.fromEntries(formData.entries());
-        const userId = e.target.dataset.userId;
-        
-        try {
-          const res = await fetch(`/admin/users${userId ? '/' + userId : ''}`, {
-            method: userId ? 'PUT' : 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-          });
-          
-          const result = await res.json();
-          if (result.success) {
-            closeUserModal();
-            showUsers(); // Refresh the list
-            // Clear user ID from form
-            e.target.dataset.userId = '';
-          } else {
-            alert(result.message || '操作失败');
-          }
-        } catch (err) {
-          console.error('Failed to save user:', err);
-          alert('操作失败，请重试');
-        }
-      };
-
       function closeUserModal() {
         const form = document.getElementById('addUserForm');
         form.reset();
@@ -403,5 +502,109 @@ html
         }
       }
 
-      // Initial load
-      showVpnRoutes();
+      async function showSubscriptionPlans() {
+        const res = await fetch('/admin/subscription-plans');
+        const data = await res.json();
+        if (data.success) {
+          const html = `
+            <h2>内购套餐列表</h2>
+            <div style="margin-bottom: 20px;">
+              <button class="btn-primary" onclick="showAddPlanModal()">添加套餐</button>
+            </div>
+            <table>
+              <tr>
+                <th>套餐ID</th>
+                <th>苹果套餐ID</th>
+                <th>标题</th>
+                <th>价格</th>
+                <th>订阅周期(天)</th>
+                <th>自动续费</th>
+                <th>客户端OS</th>
+                <th>是否显示</th>
+                <th>操作</th>
+              </tr>
+              <tbody id="plansList">
+                ${data.data.map(plan => `
+                  <tr>
+                    <td>${plan.planId}</td>
+                    <td>${plan.applePlanId}</td>
+                    <td>${plan.title}</td>
+                    <td>${plan.price}</td>
+                    <td>${plan.duration}</td>
+                    <td>${plan.autoRenew ? '是' : '否'}</td>
+                    <td>${plan.clientOS}</td>
+                    <td>${plan.isVisible ? '是' : '否'}</td>
+                    <td>
+                      <button onclick="editPlan('${plan._id}')">编辑</button>
+                      <button onclick="deletePlan('${plan._id}')">删除</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          `;
+          document.getElementById('content').innerHTML = html;
+        }
+      }
+
+      function showAddPlanModal() {
+        document.getElementById('planModalTitle').textContent = '添加内购套餐';
+        document.getElementById('addPlanForm').reset();
+        document.getElementById('addPlanModal').style.display = 'block';
+      }
+
+      function closePlanModal() {
+        document.getElementById('addPlanForm').reset();
+        document.getElementById('addPlanModal').style.display = 'none';
+      }
+
+      async function editPlan(id) {
+        try {
+          const res = await fetch(`/admin/subscription-plans/${id}`);
+          const result = await res.json();
+          
+          if (result.success) {
+            const plan = result.data;
+            const form = document.getElementById('addPlanForm');
+            
+            form.planId.value = plan.planId;
+            form.applePlanId.value = plan.applePlanId;
+            form.title.value = plan.title;
+            form.description.value = plan.description || '';
+            form.price.value = plan.price;
+            form.duration.value = plan.duration;
+            form.autoRenew.value = plan.autoRenew;
+            form.clientOS.value = plan.clientOS;
+            form.isVisible.value = plan.isVisible;
+            
+            form.dataset.planId = id;
+            document.getElementById('planModalTitle').textContent = '编辑内购套餐';
+            document.getElementById('addPlanModal').style.display = 'block';
+          }
+        } catch (err) {
+          console.error('Failed to get plan:', err);
+          alert('获取套餐信息失败，请重试');
+        }
+      }
+
+      async function deletePlan(id) {
+        if (!confirm('确定要删除该套餐吗？')) {
+          return;
+        }
+
+        try {
+          const res = await fetch(`/admin/subscription-plans/${id}`, {
+            method: 'DELETE'
+          });
+          
+          const result = await res.json();
+          if (result.success) {
+            showSubscriptionPlans();
+          } else {
+            alert(result.message || '删除失败');
+          }
+        } catch (err) {
+          console.error('Failed to delete plan:', err);
+          alert('删除失败，请重试');
+        }
+      }

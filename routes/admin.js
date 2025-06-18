@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const VpnRoute = require('../models/vpnRoute');
 const User = require('../models/user');
+const SubscriptionPlan = require('../models/subscriptionPlan');
 const { encrypt, decrypt } = require('../utils/crypto');
 const { loginLimiter, apiLimiter } = require('../middleware/rateLimit');
 
@@ -211,6 +212,55 @@ router.post('/logout', (req, res) => {
     }
     res.json({ success: true });
   });
+});
+
+// Get all subscription plans
+router.get('/subscription-plans', async (req, res) => {
+  try {
+    const plans = await SubscriptionPlan.find();
+    res.json({ success: true, data: plans });
+  } catch (err) {
+    console.error('获取套餐列表失败:', err);
+    res.json({ success: false, message: '获取套餐列表失败' });
+  }
+});
+
+// Create new plan
+router.post('/subscription-plans', async (req, res) => {
+  try {
+    const plan = new SubscriptionPlan(req.body);
+    await plan.save();
+    res.json({ success: true, data: plan });
+  } catch (err) {
+    console.error('添加套餐失败:', err);
+    res.json({ success: false, message: '添加套餐失败' });
+  }
+});
+
+// Update plan
+router.put('/subscription-plans/:id', async (req, res) => {
+  try {
+    const plan = await SubscriptionPlan.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    res.json({ success: true, data: plan });
+  } catch (err) {
+    console.error('更新套餐失败:', err);
+    res.json({ success: false, message: '更新套餐失败' });
+  }
+});
+
+// Delete plan
+router.delete('/subscription-plans/:id', async (req, res) => {
+  try {
+    await SubscriptionPlan.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('删除套餐失败:', err);
+    res.json({ success: false, message: '删除套餐失败' });
+  }
 });
 
 module.exports = router;
