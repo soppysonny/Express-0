@@ -263,4 +263,27 @@ router.delete('/subscription-plans/:id', async (req, res) => {
   }
 });
 
+// Get single subscription plan
+router.get('/subscription-plans/:id', async (req, res) => {
+  try {
+    const plan = await SubscriptionPlan.findById(req.params.id);
+    if (!plan) {
+      return res.status(404).json({
+        success: false,
+        message: '找不到该套餐'
+      });
+    }
+    res.json({
+      success: true,
+      data: plan
+    });
+  } catch (err) {
+    console.error('获取套餐信息失败:', err);
+    res.status(500).json({
+      success: false,
+      message: '获取套餐信息失败'
+    });
+  }
+});
+
 module.exports = router;
