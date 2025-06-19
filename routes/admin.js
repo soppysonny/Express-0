@@ -215,14 +215,39 @@ router.post('/logout', (req, res) => {
   });
 });
 
-// Get all subscription plans
+// Get subscription plans with optional filters
 router.get('/subscription-plans', async (req, res) => {
   try {
-    const plans = await SubscriptionPlan.find();
-    res.json({ success: true, data: plans });
+    const { bundleId, isVisible, autoRenew } = req.query;
+    
+    // Build query object based on provided parameters
+    const query = {};
+    
+    if (bundleId) {
+      query.bundleId = bundleId;
+    }
+    
+    if (isVisible !== undefined) {
+      query.isVisible = isVisible === 'true';
+    }
+    
+    if (autoRenew !== undefined) {
+      query.autoRenew = autoRenew === 'true';
+    }
+
+    // Find plans with query filters
+    const plans = await SubscriptionPlan.find(query);
+    
+    res.json({
+      success: true,
+      data: plans
+    });
   } catch (err) {
     console.error('获取套餐列表失败:', err);
-    res.json({ success: false, message: '获取套餐列表失败' });
+    res.json({
+      success: false,
+      message: '获取套餐列表失败'
+    });
   }
 });
 
@@ -423,5 +448,215 @@ function processVerificationResult(result) {
     environment: result.environment
   };
 }
+
+// Apple server-to-server notification endpoint
+router.post('/subscription/notifications', async (req, res) => {
+  try {
+    const notification = req.body;
+    
+    // Validate notification payload
+    if (!notification || !notification.unified_receipt) {
+      console.error('Invalid notification payload');
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid notification payload'
+      });
+    }
+
+    // Process the notification based on notification_type
+    switch (notification.notification_type) {
+      case 'INITIAL_BUY':
+      case 'RENEWAL':
+        await handleSubscriptionActive(notification);
+        break;
+      
+      case 'CANCEL':
+        await handleSubscriptionCancelled(notification);
+        break;
+      
+      case 'DID_FAIL_TO_RENEW':
+        await handleSubscriptionFailedToRenew(notification);
+        break;
+      
+      case 'PRICE_INCREASE_CONSENT':
+        await handlePriceIncreaseConsent(notification);
+        break;
+      
+      case 'REFUND':
+        await handleRefund(notification);
+        break;
+      
+      default:
+        console.warn('Unhandled notification type:', notification.notification_type);
+    }
+
+    // Always return 200 to acknowledge receipt
+    res.status(200).json({ success: true });
+
+  } catch (err) {
+    console.error('Failed to process subscription notification:', err);
+    // Still return 200 to prevent Apple from retrying
+    res.status(200).json({ 
+      success: false, 
+      message: 'Error processed but acknowledged' 
+    });
+  }
+});
+
+// Helper functions to handle different notification types
+async function handleSubscriptionActive(notification) {
+  const receipt = notification.unified_receipt.latest_receipt_info[0];
+  try {
+    await SubscriptionPlan.findOneAndUpdate(
+      { applePlanId: receipt.product_id },
+      {
+        $set: {
+          lastRenewalDate: new Date(parseInt(receipt.purchase_date_ms)),
+          expirationDate: new Date(parseInt(receipt.expires_date_ms)),
+          status: 'active'
+        }
+      }
+    );
+    
+    // Update user subscription status
+    await User.findOneAndUpdate(
+      { 'subscription.originalTransactionId': receipt.original_transaction_id },
+      {
+        $set: {
+          'subscription.status': 'active',
+          'subscription.expirationDate': new Date(parseInt(receipt.expires_date_ms))
+        }
+      }
+    );
+  } catch (err) {
+    console.error('Failed to update subscription status:', err);
+    throw err;
+  }
+}
+
+async function handleSubscriptionCancelled(notification) {
+  const receipt = notification.unified_receipt.latest_receipt_info[0];
+  try {
+    await User.findOneAndUpdate(
+      { 'subscription.originalTransactionId': receipt.original_transaction_id },
+      {
+        $set: {
+          'subscription.status': 'cancelled',
+          'subscription.cancellationDate': new Date(parseInt(receipt.cancellation_date_ms)),
+          'subscription.cancellationReason': notification.cancellation_reason
+        }
+      }
+    );
+  } catch (err) {
+    console.error('Failed to update subscription cancellation:', err);
+    throw err;
+  }
+}
+
+async function handleSubscriptionFailedToRenew(notification) {
+  const receipt = notification.unified_receipt.latest_receipt_info[0];
+  try {
+    await User.findOneAndUpdate(
+      { 'subscription.originalTransactionId': receipt.original_transaction_id },
+      {
+        $set: {
+          'subscription.status': 'grace_period',
+          'subscription.gracePeriodExpiryDate': new Date(parseInt(receipt.grace_period_expires_date_ms))
+        }
+      }
+    );
+  } catch (err) {
+    console.error('Failed to update subscription renewal failure:', err);
+    throw err;
+  }
+}
+
+async function handlePriceIncreaseConsent(notification) {
+  const receipt = notification.unified_receipt.latest_receipt_info[0];
+  try {
+    await User.findOneAndUpdate(
+      { 'subscription.originalTransactionId': receipt.original_transaction_id },
+      {
+        $set: {
+          'subscription.priceConsentStatus': notification.price_increase_consent_status === 'true'
+        }
+      }
+    );
+  } catch (err) {
+    console.error('Failed to update price increase consent:', err);
+    throw err;
+  }
+}
+
+async function handleRefund(notification) {
+  const receipt = notification.unified_receipt.latest_receipt_info[0];
+  try {
+    await User.findOneAndUpdate(
+      { 'subscription.originalTransactionId': receipt.original_transaction_id },
+      {
+        $set: {
+          'subscription.status': 'refunded',
+          'subscription.refundDate': new Date()
+        }
+      }
+    );
+  } catch (err) {
+    console.error('Failed to process refund:', err);
+    throw err;
+  }
+}
+
+// Get subscription records
+router.get('/subscription-records', async (req, res) => {
+  try {
+    const { planId, clientOS } = req.query;
+    const query = {};
+    
+    if (planId) {
+      query['subscription.planId'] = planId;
+    }
+    
+    if (clientOS) {
+      query['subscription.clientOS'] = clientOS;
+    }
+
+    const records = await User.aggregate([
+      { $match: { 'subscription': { $exists: true } } },
+      { $match: query },
+      {
+        $lookup: {
+          from: 'subscriptionplans',
+          localField: 'subscription.planId',
+          foreignField: 'planId',
+          as: 'plan'
+        }
+      },
+      {
+        $project: {
+          transactionId: '$subscription.transactionId',
+          planTitle: { $arrayElemAt: ['$plan.title', 0] },
+          username: '$username',
+          clientOS: '$subscription.clientOS',
+          price: { $arrayElemAt: ['$plan.price', 0] },
+          purchaseDate: '$subscription.purchaseDate',
+          expiresDate: '$subscription.expiresDate',
+          status: '$subscription.status'
+        }
+      },
+      { $sort: { purchaseDate: -1 } }
+    ]);
+
+    res.json({
+      success: true,
+      data: records
+    });
+  } catch (err) {
+    console.error('获取内购记录失败:', err);
+    res.json({
+      success: false,
+      message: '获取内购记录失败'
+    });
+  }
+});
 
 module.exports = router;

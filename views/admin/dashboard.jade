@@ -9,8 +9,48 @@ html
       .content { flex: 1; padding: 20px; }
       .menu-item { cursor: pointer; padding: 10px; }
       .menu-item:hover { background: #e0e0e0; }
-      table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-      th, td { padding: 8px; border: 1px solid #ddd; }
+      table { 
+        width: 100%; 
+        table-layout: fixed; // Fixed layout for better column control
+        border-collapse: collapse; 
+        margin-top: 20px;
+        word-wrap: break-word; // Enable word wrapping
+      }
+      
+      th, td { 
+        padding: 8px; 
+        border: 1px solid #ddd;
+        vertical-align: top; // Align content to top
+        overflow-wrap: break-word; // Handle long words
+        min-width: 80px; // Minimum column width
+        max-width: 200px; // Maximum column width
+      }
+      
+      // Keep description column wider
+      th:nth-child(5), td:nth-child(5) {
+        width: 20%;
+      }
+      
+      // Keep operation column narrow
+      th:last-child, td:last-child {
+        width: 100px;
+        white-space: nowrap; // Prevent button wrapping
+      }
+      
+      // Ensure sidebar stays fixed width
+      .sidebar {
+        min-width: 200px;
+        flex-shrink: 0; // Prevent sidebar from shrinking
+      }
+      
+      // Make content area scrollable
+      .content {
+        flex: 1;
+        padding: 20px;
+        overflow-x: auto; // Horizontal scroll for wide tables
+        min-width: 0; // Allow content to shrink below flex item min width
+      }
+      
       .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0,0,0,0.5); }
       .modal-content { background: white; padding: 20px; width: 500px; margin: 50px auto;
@@ -61,6 +101,7 @@ html
       .menu-item(onclick="showVpnRoutes()") 线路列表
       .menu-item(onclick="showUsers()") 用户管理
       .menu-item(onclick="showSubscriptionPlans()") 内购套餐
+      .menu-item(onclick="showSubscriptionRecords()") 内购记录
 
     .content#content
     
@@ -69,6 +110,9 @@ html
       .modal-content
         h2#planModalTitle 添加内购套餐
         form#addPlanForm
+          .form-group
+            label(for="bundleId") Bundle ID
+            input(type="text", name="bundleId", required)
           .form-group
             label(for="planId") 套餐ID
             input(type="text", name="planId", required)
@@ -503,47 +547,56 @@ html
       }
 
       async function showSubscriptionPlans() {
-        const res = await fetch('/admin/subscription-plans');
-        const data = await res.json();
-        if (data.success) {
-          const html = `
-            <h2>内购套餐列表</h2>
-            <div style="margin-bottom: 20px;">
-              <button class="btn-primary" onclick="showAddPlanModal()">添加套餐</button>
-            </div>
-            <table>
-              <tr>
-                <th>套餐ID</th>
-                <th>苹果套餐ID</th>
-                <th>标题</th>
-                <th>价格</th>
-                <th>订阅周期(天)</th>
-                <th>自动续费</th>
-                <th>客户端OS</th>
-                <th>是否显示</th>
-                <th>操作</th>
-              </tr>
-              <tbody id="plansList">
-                ${data.data.map(plan => `
-                  <tr>
-                    <td>${plan.planId}</td>
-                    <td>${plan.applePlanId}</td>
-                    <td>${plan.title}</td>
-                    <td>${plan.price}</td>
-                    <td>${plan.duration}</td>
-                    <td>${plan.autoRenew ? '是' : '否'}</td>
-                    <td>${plan.clientOS}</td>
-                    <td>${plan.isVisible ? '是' : '否'}</td>
-                    <td>
-                      <button onclick="editPlan('${plan._id}')">编辑</button>
-                      <button onclick="deletePlan('${plan._id}')">删除</button>
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          `;
-          document.getElementById('content').innerHTML = html;
+        try {
+          const res = await fetch('/admin/subscription-plans');
+          const data = await res.json();
+          if (data.success) {
+            const html = `
+              <h2>内购套餐列表</h2>
+              <div style="margin-bottom: 20px;">
+                <button class="btn-primary" onclick="showAddPlanModal()">添加套餐</button>
+              </div>
+              <table>
+                <tr>
+                  <th>套餐ID</th>
+                  <th>Bundle ID</th>
+                  <th>苹果套餐ID</th>
+                  <th>标题</th>
+                  <th>描述</th>
+                  <th>价格</th>
+                  <th>订阅周期(天)</th>
+                  <th>自动续费</th>
+                  <th>客户端OS</th>
+                  <th>是否显示</th>
+                  <th>操作</th>
+                </tr>
+                <tbody id="plansList">
+                  ${data.data.map(plan => `
+                    <tr>
+                      <td>${plan.planId}</td>
+                      <td>${plan.bundleId}</td>
+                      <td>${plan.applePlanId}</td>
+                      <td>${plan.title}</td>
+                      <td>${plan.description || '-'}</td>
+                      <td>${plan.price}</td>
+                      <td>${plan.duration}</td>
+                      <td>${plan.autoRenew ? '是' : '否'}</td>
+                      <td>${plan.clientOS}</td>
+                      <td>${plan.isVisible ? '是' : '否'}</td>
+                      <td>
+                        <button onclick="editPlan('${plan._id}')">编辑</button>
+                        <button onclick="deletePlan('${plan._id}')">删除</button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            `;
+            document.getElementById('content').innerHTML = html;
+          }
+        } catch (err) {
+          console.error('Failed to load subscription plans:', err);
+          alert('加载套餐列表失败，请重试');
         }
       }
 
@@ -567,6 +620,7 @@ html
             const plan = result.data;
             const form = document.getElementById('addPlanForm');
             
+            form.bundleId.value = plan.bundleId;
             form.planId.value = plan.planId;
             form.applePlanId.value = plan.applePlanId;
             form.title.value = plan.title;
@@ -606,5 +660,120 @@ html
         } catch (err) {
           console.error('Failed to delete plan:', err);
           alert('删除失败，请重试');
+        }
+      }
+
+      async function showSubscriptionRecords() {
+        try {
+          const html = `
+            <h2>内购记录列表</h2>
+            <div style="margin-bottom: 20px;">
+              <div style="display: flex; gap: 15px; align-items: center; margin-bottom: 15px;">
+                <div>
+                  <label for="planFilter">套餐筛选:</label>
+                  <select id="planFilter" style="padding: 5px;">
+                    <option value="">全部套餐</option>
+                    ${await loadPlanOptions()}
+                  </select>
+                </div>
+                <div>
+                  <label for="osFilter">系统筛选:</label>
+                  <select id="osFilter" style="padding: 5px;">
+                    <option value="">全部系统</option>
+                    <option value="iOS">iOS</option>
+                    <option value="Android">Android</option>
+                  </select>
+                </div>
+                <button class="btn-primary" onclick="filterRecords()">筛选</button>
+              </div>
+            </div>
+            <table>
+              <tr>
+                <th>交易ID</th>
+                <th>套餐名称</th>
+                <th>用户</th>
+                <th>客户端OS</th>
+                <th>价格</th>
+                <th>购买时间</th>
+                <th>过期时间</th>
+                <th>状态</th>
+              </tr>
+              <tbody id="recordsList">
+                ${await loadRecordsData()}
+              </tbody>
+            </table>
+          `;
+          document.getElementById('content').innerHTML = html;
+        } catch (err) {
+          console.error('Failed to load subscription records:', err);
+          alert('加载内购记录失败，请重试');
+        }
+      }
+
+      async function loadPlanOptions() {
+        try {
+          const res = await fetch('/admin/subscription-plans');
+          const data = await res.json();
+          if (data.success) {
+            return data.data.map(plan => 
+              `<option value="${plan.planId}">${plan.title}</option>`
+            ).join('');
+          }
+          return '';
+        } catch (err) {
+          console.error('Failed to load plans:', err);
+          return '';
+        }
+      }
+
+      async function loadRecordsData(planId = '', os = '') {
+        try {
+          let url = '/admin/subscription-records';
+          const params = new URLSearchParams();
+          if (planId) params.append('planId', planId);
+          if (os) params.append('clientOS', os);
+          if (params.toString()) url += '?' + params.toString();
+
+          const res = await fetch(url);
+          const data = await res.json();
+          
+          if (data.success) {
+            return data.data.map(record => `
+              <tr>
+                <td>${record.transactionId}</td>
+                <td>${record.planTitle}</td>
+                <td>${record.username}</td>
+                <td>${record.clientOS}</td>
+                <td>${record.price}</td>
+                <td>${new Date(record.purchaseDate).toLocaleString()}</td>
+                <td>${record.expiresDate ? new Date(record.expiresDate).toLocaleString() : '-'}</td>
+                <td>${getStatusText(record.status)}</td>
+              </tr>
+            `).join('');
+          }
+          return '';
+        } catch (err) {
+          console.error('Failed to load records:', err);
+          return '';
+        }
+      }
+
+      function getStatusText(status) {
+        const statusMap = {
+          'active': '有效',
+          'expired': '已过期',
+          'cancelled': '已取消',
+          'refunded': '已退款',
+          'grace_period': '宽限期'
+        };
+        return statusMap[status] || status;
+      }
+
+      async function filterRecords() {
+        const planId = document.getElementById('planFilter').value;
+        const os = document.getElementById('osFilter').value;
+        const recordsList = document.getElementById('recordsList');
+        if (recordsList) {
+          recordsList.innerHTML = await loadRecordsData(planId, os);
         }
       }

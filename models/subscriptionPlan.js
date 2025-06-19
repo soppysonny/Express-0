@@ -35,6 +35,10 @@ const subscriptionPlanSchema = new mongoose.Schema({
   isVisible: {
     type: Boolean,
     default: true
+  },
+  bundleId: {
+    type: String,
+    required: true
   }
 }, {
   timestamps: true
