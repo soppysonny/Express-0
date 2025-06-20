@@ -686,16 +686,15 @@ router.get('/subscription-records', async (req, res) => {
 // Update user
 router.put('/users/:id', async (req, res) => {
   try {
-    const { username, email, role } = req.body;
+    const { email, role } = req.body;
     
     const user = await User.findByIdAndUpdate(
       req.params.id,
       {
-        username,
         email,
         role
       },
-      { new: true } // Return updated document
+      { new: true }
     );
 
     if (!user) {
@@ -721,7 +720,7 @@ router.put('/users/:id', async (req, res) => {
 // Create new user
 router.post('/users', async (req, res) => {
   try {
-    const { username, email, role } = req.body;
+    const { email, role } = req.body;
     
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -733,10 +732,12 @@ router.post('/users', async (req, res) => {
     }
 
     // Create new user
+    const token = generateToken();
     const user = new User({
-      username,
       email,
-      role: role || 'user'
+      role: role || 'user',
+      token,
+      registerIp: '0.0.0.0'
     });
 
     await user.save();

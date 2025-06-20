@@ -179,14 +179,11 @@ html
             button.btn-primary(type="submit") 保存
             button.btn-primary(type="button", onclick="closeModal()") 取消
 
-    // Add User Modal
+    // Update the user modal
     #addUserModal.modal
       .modal-content
         h2#userModalTitle 添加用户
         form#addUserForm(autocomplete="off")
-          .form-group
-            label(for="username") 用户名
-            input#username(type="text", name="username", required)
           .form-group
             label(for="email") 邮箱
             input#email(type="email", name="email", required)
@@ -512,18 +509,12 @@ html
             const user = result.data;
             const form = document.getElementById('addUserForm');
             
-            // Update modal title
             document.getElementById('userModalTitle').textContent = '编辑用户';
             
-            // Populate form fields with user data
-            form.username.value = user.username || '';
             form.email.value = user.email || '';
             form.role.value = user.role || 'user';
             
-            // Store user ID for form submission
             form.dataset.userId = id;
-            
-            // Show modal
             document.getElementById('addUserModal').style.display = 'block';
           } else {
             throw new Error(result.message || '获取用户信息失败');
