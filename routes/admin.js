@@ -113,11 +113,35 @@ router.get('/vpn-routes/:id', async (req, res) => {
 // Get users
 router.get('/users', async (req, res) => {
   try {
-    const users = await User.find().select('email token registerIp lastLoginIp createdAt');
+    const users = await User.find().select('username email token registerIp lastLoginIp createdAt role');
+    console.log('获取用户列表:', users);
     res.json({ success: true, data: users });
   } catch (err) {
     console.error('获取用户列表失败:', err);
     res.json({ success: false, message: '获取用户列表失败' });
+  }
+});
+
+// Get single user
+router.get('/users/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: '找不到该用户'
+      });
+    }
+    res.json({
+      success: true,
+      data: user
+    });
+  } catch (err) {
+    console.error('获取用户信息失败:', err);
+    res.status(500).json({
+      success: false,
+      message: '获取用户信息失败'
+    });
   }
 });
 
@@ -655,6 +679,78 @@ router.get('/subscription-records', async (req, res) => {
     res.json({
       success: false,
       message: '获取内购记录失败'
+    });
+  }
+});
+
+// Update user
+router.put('/users/:id', async (req, res) => {
+  try {
+    const { username, email, role } = req.body;
+    
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      {
+        username,
+        email,
+        role
+      },
+      { new: true } // Return updated document
+    );
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: '找不到该用户'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: user
+    });
+  } catch (err) {
+    console.error('更新用户失败:', err);
+    res.status(500).json({
+      success: false,
+      message: '更新用户失败'
+    });
+  }
+});
+
+// Create new user
+router.post('/users', async (req, res) => {
+  try {
+    const { username, email, role } = req.body;
+    
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: '该邮箱已被注册'
+      });
+    }
+
+    // Create new user
+    const user = new User({
+      username,
+      email,
+      role: role || 'user'
+    });
+
+    await user.save();
+
+    res.json({
+      success: true,
+      data: user
+    });
+
+  } catch (err) {
+    console.error('创建用户失败:', err);
+    res.status(500).json({
+      success: false,
+      message: '创建用户失败'
     });
   }
 });

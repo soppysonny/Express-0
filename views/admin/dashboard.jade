@@ -182,17 +182,17 @@ html
     // Add User Modal
     #addUserModal.modal
       .modal-content
-        h2 添加用户
-        form#addUserForm
+        h2#userModalTitle 添加用户
+        form#addUserForm(autocomplete="off")
           .form-group
             label(for="username") 用户名
-            input(type="text", name="username", required)
+            input#username(type="text", name="username", required)
           .form-group
             label(for="email") 邮箱
-            input(type="email", name="email", required)
+            input#email(type="email", name="email", required)
           .form-group
             label(for="role") 角色
-            select(name="role")
+            select#role(name="role")
               option(value="user") 用户
               option(value="admin") 管理员
           .modal-buttons
@@ -441,35 +441,43 @@ html
       }
 
       async function showUsers() {
-        console.log('Loading users...');
-        const res = await fetch('/admin/users');
-        const data = await res.json();
-        if (data.success) {
-          const html = `
-            <h2>用户管理</h2>
-            <table>
-              <tr>
-                <th>用户名</th>
-                <th>邮箱</th>
-                <th>角色</th>
-                <th>操作</th>
-              </tr>
-              <tbody id="usersList">
-                ${data.data.map(user => `
-                  <tr data-user='${JSON.stringify(user)}'>
-                    <td>${user.username}</td>
-                    <td>${user.email}</td>
-                    <td>${user.role}</td>
-                    <td>
-                      <button onclick="editUser('${user._id}')">编辑</button>
-                      <button onclick="deleteUser('${user._id}')">删除</button>
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          `;
-          document.getElementById('content').innerHTML = html;
+        try {
+          console.log('Loading users...');
+          const res = await fetch('/admin/users');
+          const data = await res.json();
+          if (data.success) {
+            const html = `
+              <h2>用户管理</h2>
+              <div style="margin-bottom: 20px;">
+                <button class="btn-primary" onclick="showAddUserModal()">添加用户</button>
+              </div>
+              <table>
+                <tr>
+                  <th>用户名</th>
+                  <th>邮箱</th>
+                  <th>角色</th>
+                  <th>操作</th>
+                </tr>
+                <tbody id="usersList">
+                  ${data.data.map(user => `
+                    <tr>
+                      <td>${user.username || '-'}</td>
+                      <td>${user.email || '-'}</td>
+                      <td>${user.role || 'user'}</td>
+                      <td>
+                        <button onclick="editUser('${user._id}')">编辑</button>
+                        <button onclick="deleteUser('${user._id}')">删除</button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            `;
+            document.getElementById('content').innerHTML = html;
+          }
+        } catch (err) {
+          console.error('Failed to load users:', err);
+          alert('加载用户列表失败，请重试');
         }
       }
 
@@ -497,23 +505,28 @@ html
 
       async function editUser(id) {
         try {
-          // First get the user data
           const res = await fetch(`/admin/users/${id}`);
           const result = await res.json();
           
           if (result.success) {
             const user = result.data;
-            // Fill the form with user data
             const form = document.getElementById('addUserForm');
-            form.username.value = user.username;
-            form.email.value = user.email;
-            form.role.value = user.role;
             
-            // Add user ID to form for update
+            // Update modal title
+            document.getElementById('userModalTitle').textContent = '编辑用户';
+            
+            // Populate form fields with user data
+            form.username.value = user.username || '';
+            form.email.value = user.email || '';
+            form.role.value = user.role || 'user';
+            
+            // Store user ID for form submission
             form.dataset.userId = id;
             
             // Show modal
-            showAddUserModal();
+            document.getElementById('addUserModal').style.display = 'block';
+          } else {
+            throw new Error(result.message || '获取用户信息失败');
           }
         } catch (err) {
           console.error('Failed to get user:', err);
@@ -521,10 +534,14 @@ html
         }
       }
 
+      function showAddUserModal(userId = null) {
+        document.getElementById('userModalTitle').textContent = userId ? '编辑用户' : '添加用户';
+        document.getElementById('addUserForm').reset();
+        document.getElementById('addUserModal').style.display = 'block';
+      }
+
       function closeUserModal() {
-        const form = document.getElementById('addUserForm');
-        form.reset();
-        form.dataset.userId = '';
+        document.getElementById('addUserForm').reset();
         document.getElementById('addUserModal').style.display = 'none';
       }
 
@@ -777,3 +794,38 @@ html
           recordsList.innerHTML = await loadRecordsData(planId, os);
         }
       }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('addUserForm');
+        if (form) {
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            const userId = e.target.dataset.userId;
+            
+            try {
+              const res = await fetch(`/admin/users${userId ? '/' + userId : ''}`, {
+                method: userId ? 'PUT' : 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+              });
+              
+              const result = await res.json();
+              if (result.success) {
+                closeUserModal();
+                showUsers();
+                e.target.dataset.userId = '';
+              } else {
+                alert(result.message || '操作失败');
+              }
+            } catch (err) {
+              console.error('Failed to save user:', err);
+              alert('操作失败，请重试');
+            }
+          });
+        }
+      });
