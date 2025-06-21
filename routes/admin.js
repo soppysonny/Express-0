@@ -243,6 +243,7 @@ router.post('/logout', (req, res) => {
 router.get('/subscription-plans', async (req, res) => {
   try {
     const { bundleId, isVisible, autoRenew } = req.query;
+    console.log('获取套餐列表请求参数:', { bundleId, isVisible, autoRenew });
     
     // Build query object based on provided parameters
     const query = {};
@@ -259,19 +260,26 @@ router.get('/subscription-plans', async (req, res) => {
       query.autoRenew = autoRenew === 'true';
     }
 
+    console.log('MongoDB查询条件:', query);
+
     // Find plans with query filters
     const plans = await SubscriptionPlan.find(query);
     
-    res.json({
+    const response = {
       success: true,
       data: plans
-    });
+    };
+    
+    console.log('套餐列表响应:', JSON.stringify(response, null, 2));
+    res.json(response);
   } catch (err) {
     console.error('获取套餐列表失败:', err);
-    res.json({
+    const errorResponse = {
       success: false,
       message: '获取套餐列表失败'
-    });
+    };
+    console.log('套餐列表错误响应:', errorResponse);
+    res.json(errorResponse);
   }
 });
 
@@ -316,23 +324,33 @@ router.delete('/subscription-plans/:id', async (req, res) => {
 // Get single subscription plan
 router.get('/subscription-plans/:id', async (req, res) => {
   try {
+    console.log('获取单个套餐请求ID:', req.params.id);
+    
     const plan = await SubscriptionPlan.findById(req.params.id);
     if (!plan) {
-      return res.status(404).json({
+      const notFoundResponse = {
         success: false,
         message: '找不到该套餐'
-      });
+      };
+      console.log('套餐未找到响应:', notFoundResponse);
+      return res.status(404).json(notFoundResponse);
     }
-    res.json({
+    
+    const response = {
       success: true,
       data: plan
-    });
+    };
+    
+    console.log('单个套餐响应:', JSON.stringify(response, null, 2));
+    res.json(response);
   } catch (err) {
     console.error('获取套餐信息失败:', err);
-    res.status(500).json({
+    const errorResponse = {
       success: false,
       message: '获取套餐信息失败'
-    });
+    };
+    console.log('获取套餐信息错误响应:', errorResponse);
+    res.status(500).json(errorResponse);
   }
 });
 
