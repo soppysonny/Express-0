@@ -1,10 +1,16 @@
 const express = require('express');
 const router = express.Router();
 const { sendVerificationCode } = require('../utils/email');
-const { generateToken, getTokenFromCookies } = require('../utils/auth');
+const { generateToken: generateAuthToken, getTokenFromCookies } = require('../utils/auth');
 const User = require('../models/user');
 const bcrypt = require('bcrypt');
 const redis = require('../utils/redis');
+const crypto = require('crypto');
+
+// Token 生成函数
+function generateToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
 
 // 存储验证码的 Map
 const verificationCodes = new Map();
@@ -41,47 +47,59 @@ router.post('/send-code', async (req, res) => {
 
 // 处理注册
 router.post('/', async function(req, res) {
-  const { email, verifyCode } = req.body;
-  const clientIp = req.ip || req.connection.remoteAddress;
-  
   try {
-    // Get verification code from Redis
-    const storedCode = await redis.get(`verification:${email}`);
-    if (!storedCode || storedCode !== verifyCode) {
-      return res.json({ 
-        success: false, 
-        message: '验证码无效或已过期' 
+    const { email, verificationCode } = req.body;
+    
+    // 验证必填字段
+    if (!email || !verificationCode) {
+      return res.json({
+        success: false,
+        message: '请填写所有必填字段'
       });
     }
 
-    // Generate new token
-    const token = generateToken();
+    // 验证验证码
+    const storedCode = await redis.get(`verification:${email}`);
+    if (!storedCode || storedCode !== verificationCode) {
+      return res.json({
+        success: false,
+        message: '验证码无效或已过期'
+      });
+    }
 
+    // 查找或创建用户
     let user = await User.findOne({ email });
+    let isNewUser = false;
     
     if (!user) {
-      // 新用户注册
-      user = new User({ 
+      // 创建新用户
+      const token = generateToken(); // 生成新的 token
+      user = new User({
         email,
         token,
-        registerIp: clientIp,
-        lastLoginIp: clientIp
+        registerIp: req.ip || '0.0.0.0',
+        role: 'user'
       });
+      await user.save();
+      isNewUser = true;
     } else {
-      // 已存在用户登录
-      user.token = token;
-      user.lastLoginIp = clientIp;
+      // 现有用户登录，可能需要更新 token
+      if (!user.token) {
+        user.token = generateToken();
+        await user.save();
+      }
     }
-    
-    await user.save();
-    // Delete verification code after successful registration
+
+    // 删除已使用的验证码
     await redis.del(`verification:${email}`);
-    
+
+    // 返回成功响应，包含 token
     res.json({ 
       success: true, 
-      message: user ? '登录成功' : '注册成功',
-      token
+      message: isNewUser ? '注册成功' : '登录成功',
+      token: user.token
     });
+
   } catch (err) {
     console.error('操作失败:', err);
     res.json({ 
