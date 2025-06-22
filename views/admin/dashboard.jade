@@ -94,6 +94,55 @@ html
       .logout-btn:hover {
         background: #d32f2f;
       }
+      
+      .logs-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+      
+      .logs-table th,
+      .logs-table td {
+        padding: 10px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+      }
+      
+      .logs-table th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+      }
+      
+      .logs-table tr:hover {
+        background-color: #f5f5f5;
+      }
+      
+      .btn-download {
+        background-color: #28a745;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      
+      .btn-delete {
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+        margin-left: 5px;
+      }
+      
+      .btn-download:hover {
+        background-color: #218838;
+      }
+      
+      .btn-delete:hover {
+        background-color: #c82333;
+      }
 
   body
     button.logout-btn(onclick="logout()") 退出登录
@@ -785,6 +834,137 @@ html
           recordsList.innerHTML = await loadRecordsData(planId, os);
         }
       }
+
+      // 显示用户日志列表
+      async function showUserLogs() {
+        try {
+          console.log('Loading user logs...');
+          const res = await fetch('/admin/user-logs');
+          const data = await res.json();
+          
+          if (data.success) {
+            const html = `
+              <h2>用户日志管理</h2>
+              <div style="margin-bottom: 20px;">
+                <button class="btn-primary" onclick="refreshLogs()">刷新列表</button>
+              </div>
+              <table class="logs-table">
+                <tr>
+                  <th>文件名</th>
+                  <th>用户邮箱</th>
+                  <th>文件大小</th>
+                  <th>上传时间</th>
+                  <th>操作</th>
+                </tr>
+                <tbody id="logsList">
+                  ${data.data.map(log => `
+                    <tr>
+                      <td>${log.filename}</td>
+                      <td>${log.userEmail}</td>
+                      <td>${formatFileSize(log.size)}</td>
+                      <td>${new Date(log.uploadTime).toLocaleString()}</td>
+                      <td>
+                        <button class="btn-download" onclick="downloadLog('${log.filename}')">下载</button>
+                        <button class="btn-delete" onclick="deleteLog('${log.filename}')" style="margin-left: 5px;">删除</button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+              ${data.data.length === 0 ? '<p>暂无用户日志文件</p>' : ''}
+            `;
+            document.getElementById('content').innerHTML = html;
+          } else {
+            throw new Error(data.message || '获取日志列表失败');
+          }
+        } catch (err) {
+          console.error('Failed to load user logs:', err);
+          alert('加载日志列表失败，请重试');
+        }
+      }
+
+      // 格式化文件大小
+      function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+
+      // 刷新日志列表
+      function refreshLogs() {
+        showUserLogs();
+      }
+
+      // 下载日志文件
+      function downloadLog(filename) {
+        const link = document.createElement('a');
+        link.href = `/admin/user-logs/${filename}`;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      // 删除日志文件
+      async function deleteLog(filename) {
+        if (!confirm(`确定要删除日志文件 "${filename}" 吗？`)) {
+          return;
+        }
+
+        try {
+          const res = await fetch(`/admin/user-logs/${filename}`, {
+            method: 'DELETE'
+          });
+          
+          const result = await res.json();
+          if (result.success) {
+            alert('日志文件删除成功');
+            showUserLogs(); // 刷新列表
+          } else {
+            alert(result.message || '删除失败');
+          }
+        } catch (err) {
+          console.error('Failed to delete log:', err);
+          alert('删除失败，请重试');
+        }
+      }
+
+      // 在 sidebar 点击事件中添加日志管理
+      // 找到现有的 sidebar 点击事件处理，添加：
+      function handleSidebarClick(item) {
+        // ...existing code...
+        
+        if (item === 'user-logs') {
+          showUserLogs();
+          return;
+        }
+        
+        // ...existing code...
+      }
+
+      // 更新 sidebar HTML，在用户管理后面添加日志管理
+      function updateSidebar() {
+        const sidebar = document.querySelector('.sidebar');
+        if (sidebar) {
+          sidebar.innerHTML = `
+            <h3>管理面板</h3>
+            <ul>
+              <li><a href="#" onclick="showUsers()">用户管理</a></li>
+              <li><a href="#" onclick="showUserLogs()">日志管理</a></li>
+              <li><a href="#" onclick="showVpnRoutes()">VPN路由</a></li>
+              <li><a href="#" onclick="showSubscriptionPlans()">订阅套餐</a></li>
+              <li><a href="#" onclick="showSubscriptionRecords()">订阅记录</a></li>
+            </ul>
+          `;
+        }
+      }
+
+      // 页面加载时更新侧边栏
+      document.addEventListener('DOMContentLoaded', function() {
+        updateSidebar();
+      });
 
       document.addEventListener('DOMContentLoaded', () => {
         const form = document.getElementById('addUserForm');

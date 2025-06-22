@@ -774,6 +774,131 @@ router.post('/users', async (req, res) => {
   }
 });
 
+// 获取用户日志列表
+router.get('/user-logs', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    const logsDir = path.join(__dirname, '../uploads/logs');
+    
+    if (!fs.existsSync(logsDir)) {
+      return res.json({
+        success: true,
+        data: []
+      });
+    }
+
+    const files = fs.readdirSync(logsDir);
+    const logFiles = [];
+
+    for (const filename of files) {
+      const filepath = path.join(logsDir, filename);
+      const stats = fs.statSync(filepath);
+      
+      // 解析文件名获取用户ID
+      const parts = filename.split('_');
+      const userId = parts[0];
+      
+      let user = null;
+      try {
+        user = await User.findById(userId).select('email');
+      } catch (err) {
+        console.log('找不到用户:', userId);
+      }
+
+      logFiles.push({
+        filename,
+        userId,
+        userEmail: user ? user.email : '未知用户',
+        size: stats.size,
+        uploadTime: stats.birthtime,
+        modifiedTime: stats.mtime
+      });
+    }
+
+    // 按上传时间倒序排序
+    logFiles.sort((a, b) => new Date(b.uploadTime) - new Date(a.uploadTime));
+
+    console.log('获取日志列表成功，共', logFiles.length, '个文件');
+    
+    res.json({
+      success: true,
+      data: logFiles
+    });
+
+  } catch (err) {
+    console.error('获取日志列表失败:', err);
+    res.json({
+      success: false,
+      message: '获取日志列表失败'
+    });
+  }
+});
+
+// 下载日志文件
+router.get('/user-logs/:filename', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    const { filename } = req.params;
+    const filepath = path.join(__dirname, '../uploads/logs', filename);
+    
+    if (!fs.existsSync(filepath)) {
+      return res.status(404).json({
+        success: false,
+        message: '文件不存在'
+      });
+    }
+
+    // 设置下载头
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    
+    // 发送文件
+    res.sendFile(filepath);
+
+  } catch (err) {
+    console.error('下载日志文件失败:', err);
+    res.status(500).json({
+      success: false,
+      message: '下载文件失败'
+    });
+  }
+});
+
+// 删除日志文件
+router.delete('/user-logs/:filename', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    const { filename } = req.params;
+    const filepath = path.join(__dirname, '../uploads/logs', filename);
+    
+    if (fs.existsSync(filepath)) {
+      fs.unlinkSync(filepath);
+      res.json({
+        success: true,
+        message: '日志文件删除成功'
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: '文件不存在'
+      });
+    }
+
+  } catch (err) {
+    console.error('删除日志文件失败:', err);
+    res.status(500).json({
+      success: false,
+      message: '删除文件失败'
+    });
+  }
+});
+
 function generateToken() {
   return require('crypto').randomBytes(32).toString('hex');
 }

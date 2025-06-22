@@ -12,6 +12,7 @@ var usersRouter = require('./routes/users');
 var registerRouter = require('./routes/register');
 const adminRouter = require('./routes/admin');
 const musicRouter = require('./routes/music');
+const userRouter = require('./routes/user');
 
 var app = express();
 app.locals.env = env;
@@ -76,6 +77,7 @@ app.use('/users', usersRouter);
 app.use('/register', registerRouter);
 app.use('/admin', adminRouter);
 app.use('/music', musicRouter);
+app.use('/api/user', userRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
