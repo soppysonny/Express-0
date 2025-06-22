@@ -774,4 +774,8 @@ router.post('/users', async (req, res) => {
   }
 });
 
+function generateToken() {
+  return require('crypto').randomBytes(32).toString('hex');
+}
+
 module.exports = router;
